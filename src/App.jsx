@@ -1,60 +1,141 @@
 import { useState, useRef, useEffect, useCallback } from "react"
-import { loadInventory, saveInventory, loadProductions, saveProduction,
-         updateProductionStatus, loadTransactions, saveTransactions,
-         loadExpenses, saveExpenses, loadSetting, saveSetting,
-         loadCompanySettings, saveCompanySettings, loadInvoices, saveInvoice } from "./lib/data.js"
+import { loadInventory, saveInventory, loadProductions, saveProduction, updateProdStatus,
+  loadTransactions, saveTxns, loadExpenses, saveExpenses, loadSetting, saveSetting,
+  loadCompany, saveCompany, loadInvoices, saveInvoice, loadUsers, saveUsers,
+  loadRecipes, saveRecipes } from "./lib/data.js"
 
-// ── defaults ──────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+//  FAYVOUREE REAL INVENTORY DATA
+// ═══════════════════════════════════════════════════════════
 const DEFAULT_INV = [
-  {id:"i1",name:"All-Purpose Flour",cat:"Dry Goods",unit:"kg",cost:2500,stock:10,minStock:3},
-  {id:"i2",name:"Sugar",cat:"Dry Goods",unit:"kg",cost:1800,stock:8,minStock:2},
-  {id:"i3",name:"Butter",cat:"Dairy",unit:"kg",cost:4500,stock:5,minStock:2},
-  {id:"i4",name:"Eggs",cat:"Dairy",unit:"pcs",cost:120,stock:50,minStock:12},
-  {id:"i5",name:"Milk",cat:"Dairy",unit:"L",cost:800,stock:5,minStock:2},
-  {id:"i6",name:"Fondant",cat:"Coverings",unit:"kg",cost:6000,stock:2.5,minStock:1},
-  {id:"i7",name:"Buttercream Mix",cat:"Coverings",unit:"kg",cost:3500,stock:4,minStock:1},
-  {id:"i8",name:"Cake Boards",cat:"Packaging",unit:"pcs",cost:500,stock:18,minStock:5},
-  {id:"i9",name:"Cake Boxes",cat:"Packaging",unit:"pcs",cost:800,stock:14,minStock:5},
-  {id:"i10",name:"Baking Powder",cat:"Dry Goods",unit:"g",cost:5,stock:480,minStock:100},
-  {id:"i11",name:"Vanilla Essence",cat:"Flavoring",unit:"bottle",cost:1500,stock:7,minStock:2},
-  {id:"i12",name:"Food Coloring",cat:"Decoration",unit:"set",cost:2000,stock:5,minStock:1},
-  {id:"i13",name:"Ribbon & Accessories",cat:"Decoration",unit:"pack",cost:1200,stock:9,minStock:3},
-  {id:"i14",name:"Cocoa Powder",cat:"Dry Goods",unit:"kg",cost:3800,stock:1.5,minStock:0.5},
-  {id:"i15",name:"Strawberry Essence",cat:"Flavoring",unit:"bottle",cost:1200,stock:4,minStock:1},
+  {id:"i1",  name:"Flour",                     cat:"Dry Goods",   unit:"kg",    cost:1140,  stock:50,  minStock:10},
+  {id:"i2",  name:"Sugar",                     cat:"Dry Goods",   unit:"kg",    cost:1500,  stock:50,  minStock:10},
+  {id:"i3",  name:"Oil",                       cat:"Fats & Oils", unit:"L",     cost:3000,  stock:25,  minStock:5 },
+  {id:"i4",  name:"Butter (Butler)",           cat:"Fats & Oils", unit:"kg",    cost:17500, stock:8,   minStock:2 },
+  {id:"i5",  name:"Margarine (Valido)",        cat:"Fats & Oils", unit:"kg",    cost:5400,  stock:10,  minStock:2 },
+  {id:"i6",  name:"Margarine (Romi)",          cat:"Fats & Oils", unit:"kg",    cost:6000,  stock:10,  minStock:2 },
+  {id:"i7",  name:"Eggs",                      cat:"Dairy",       unit:"pcs",   cost:700,   stock:120, minStock:24},
+  {id:"i8",  name:"Milk (Hollandia)",          cat:"Dairy",       unit:"L",     cost:3700,  stock:5,   minStock:2 },
+  {id:"i9",  name:"Milk Lactose",              cat:"Dairy",       unit:"kg",    cost:6800,  stock:5,   minStock:1 },
+  {id:"i10", name:"Dry Whipping Cream",        cat:"Dairy",       unit:"kg",    cost:12000, stock:2,   minStock:0.5},
+  {id:"i11", name:"Liquid Whipping Cream",     cat:"Dairy",       unit:"kg",    cost:9500,  stock:2,   minStock:0.5},
+  {id:"i12", name:"Cream Cheese",              cat:"Dairy",       unit:"kg",    cost:19000, stock:1,   minStock:0.5},
+  {id:"i13", name:"Icing Sugar",               cat:"Dry Goods",   unit:"kg",    cost:2250,  stock:10,  minStock:2 },
+  {id:"i14", name:"Majesty Icing Sugar",       cat:"Dry Goods",   unit:"kg",    cost:5400,  stock:5,   minStock:1 },
+  {id:"i15", name:"Baking Powder",             cat:"Dry Goods",   unit:"kg",    cost:12222, stock:0.45,minStock:0.1},
+  {id:"i16", name:"Baking Soda",               cat:"Dry Goods",   unit:"kg",    cost:5000,  stock:0.6, minStock:0.1},
+  {id:"i17", name:"CMC",                       cat:"Dry Goods",   unit:"kg",    cost:15000, stock:0.4, minStock:0.1},
+  {id:"i18", name:"Glucose",                   cat:"Dry Goods",   unit:"kg",    cost:3000,  stock:2,   minStock:0.5},
+  {id:"i19", name:"Salt",                      cat:"Dry Goods",   unit:"kg",    cost:600,   stock:2,   minStock:0.5},
+  {id:"i20", name:"Cocoa Powder",              cat:"Dry Goods",   unit:"kg",    cost:25000, stock:1,   minStock:0.2},
+  {id:"i21", name:"Dark Chocolate (Colatta)",  cat:"Chocolate",   unit:"kg",    cost:12000, stock:2,   minStock:0.5},
+  {id:"i22", name:"White Chocolate (Colatta)", cat:"Chocolate",   unit:"kg",    cost:12000, stock:1,   minStock:0.5},
+  {id:"i23", name:"Red Velvet Powder Color",   cat:"Colorings",   unit:"kg",    cost:10000, stock:0.4, minStock:0.1},
+  {id:"i24", name:"Red Food Color (Foster)",   cat:"Colorings",   unit:"ml",    cost:25,    stock:28,  minStock:5 },
+  {id:"i25", name:"Gel Colors",                cat:"Colorings",   unit:"set",   cost:5000,  stock:2,   minStock:1 },
+  {id:"i26", name:"Flavour",                   cat:"Flavoring",   unit:"bottle",cost:3000,  stock:5,   minStock:2 },
+  {id:"i27", name:"Mixed Fruit",               cat:"Fruits",      unit:"kg",    cost:4500,  stock:5,   minStock:1 },
+  {id:"i28", name:"Carrot",                    cat:"Fruits",      unit:"kg",    cost:2000,  stock:2,   minStock:0.5},
+  {id:"i29", name:"Red Cherry",                cat:"Fruits",      unit:"kg",    cost:18000, stock:1,   minStock:0.2},
+  {id:"i30", name:"Oreo Cookies",              cat:"Decoration",  unit:"pack",  cost:18000, stock:2,   minStock:1 },
+  {id:"i31", name:"Flowers",                   cat:"Decoration",  unit:"pcs",   cost:2000,  stock:20,  minStock:5 },
+  {id:"i32", name:"Toppers",                   cat:"Decoration",  unit:"pcs",   cost:2000,  stock:15,  minStock:5 },
+  {id:"i33", name:"Ribbons",                   cat:"Decoration",  unit:"pack",  cost:1500,  stock:10,  minStock:3 },
+  {id:"i34", name:"Wafer Paper",               cat:"Decoration",  unit:"pack",  cost:3000,  stock:5,   minStock:2 },
+  {id:"i35", name:"Sprinkles / Shimmer",       cat:"Decoration",  unit:"pack",  cost:2500,  stock:5,   minStock:2 },
+  {id:"i36", name:"Cake Board 8\"",            cat:"Packaging",   unit:"pcs",   cost:450,   stock:20,  minStock:5 },
+  {id:"i37", name:"Cake Board 10\"",           cat:"Packaging",   unit:"pcs",   cost:550,   stock:15,  minStock:5 },
+  {id:"i38", name:"Cake Board 12\"",           cat:"Packaging",   unit:"pcs",   cost:650,   stock:10,  minStock:3 },
+  {id:"i39", name:"Tall Box 8\"",              cat:"Packaging",   unit:"pcs",   cost:480,   stock:20,  minStock:5 },
+  {id:"i40", name:"Tall Box 10\"",             cat:"Packaging",   unit:"pcs",   cost:550,   stock:15,  minStock:5 },
+  {id:"i41", name:"Tall Box 12\"",             cat:"Packaging",   unit:"pcs",   cost:600,   stock:10,  minStock:3 },
+  {id:"i42", name:"Cupcake Box x12",           cat:"Packaging",   unit:"pcs",   cost:450,   stock:20,  minStock:5 },
+  {id:"i43", name:"Baking Paper",              cat:"Packaging",   unit:"roll",  cost:8500,  stock:3,   minStock:1 },
+  {id:"i44", name:"Cling Film",                cat:"Packaging",   unit:"roll",  cost:2000,  stock:3,   minStock:1 },
+  {id:"i45", name:"Wrapping Sheet",            cat:"Packaging",   unit:"pack",  cost:8000,  stock:2,   minStock:1 },
 ]
 
-const RECIPES = [
-  {id:"r1",name:'6" · Buttercream',size:'6"',covering:"buttercream",ing:[{iid:"i1",qty:0.5},{iid:"i2",qty:0.4},{iid:"i3",qty:0.3},{iid:"i4",qty:4},{iid:"i5",qty:0.2},{iid:"i7",qty:0.5},{iid:"i8",qty:1},{iid:"i9",qty:1},{iid:"i10",qty:10},{iid:"i11",qty:0.1}]},
-  {id:"r2",name:'6" · Fondant',size:'6"',covering:"fondant",ing:[{iid:"i1",qty:0.5},{iid:"i2",qty:0.4},{iid:"i3",qty:0.3},{iid:"i4",qty:4},{iid:"i5",qty:0.2},{iid:"i6",qty:0.8},{iid:"i8",qty:1},{iid:"i9",qty:1},{iid:"i10",qty:10},{iid:"i11",qty:0.1}]},
-  {id:"r3",name:'8" · Buttercream',size:'8"',covering:"buttercream",ing:[{iid:"i1",qty:0.8},{iid:"i2",qty:0.6},{iid:"i3",qty:0.5},{iid:"i4",qty:6},{iid:"i5",qty:0.3},{iid:"i7",qty:0.8},{iid:"i8",qty:1},{iid:"i9",qty:1},{iid:"i10",qty:15},{iid:"i11",qty:0.15}]},
-  {id:"r4",name:'8" · Fondant',size:'8"',covering:"fondant",ing:[{iid:"i1",qty:0.8},{iid:"i2",qty:0.6},{iid:"i3",qty:0.5},{iid:"i4",qty:6},{iid:"i5",qty:0.3},{iid:"i6",qty:1.2},{iid:"i8",qty:1},{iid:"i9",qty:1},{iid:"i10",qty:15},{iid:"i11",qty:0.15}]},
-  {id:"r5",name:'10" · Buttercream',size:'10"',covering:"buttercream",ing:[{iid:"i1",qty:1.2},{iid:"i2",qty:0.9},{iid:"i3",qty:0.8},{iid:"i4",qty:9},{iid:"i5",qty:0.4},{iid:"i7",qty:1.2},{iid:"i8",qty:1},{iid:"i9",qty:1},{iid:"i10",qty:20},{iid:"i11",qty:0.2}]},
-  {id:"r6",name:'2-Tier · Fondant',size:'2-tier',covering:"fondant",ing:[{iid:"i1",qty:1.5},{iid:"i2",qty:1.2},{iid:"i3",qty:1.0},{iid:"i4",qty:12},{iid:"i5",qty:0.5},{iid:"i6",qty:1.8},{iid:"i8",qty:2},{iid:"i9",qty:1},{iid:"i10",qty:25},{iid:"i11",qty:0.25},{iid:"i12",qty:0.5},{iid:"i13",qty:1}]},
-  {id:"r7",name:'3-Tier · Fondant',size:'3-tier',covering:"fondant",ing:[{iid:"i1",qty:2.5},{iid:"i2",qty:2.0},{iid:"i3",qty:1.8},{iid:"i4",qty:20},{iid:"i5",qty:0.8},{iid:"i6",qty:3.0},{iid:"i8",qty:3},{iid:"i9",qty:1},{iid:"i10",qty:40},{iid:"i11",qty:0.4},{iid:"i12",qty:1},{iid:"i13",qty:2}]},
-  {id:"r8",name:'Cupcakes ×12',size:'cupcakes×12',covering:"buttercream",ing:[{iid:"i1",qty:0.3},{iid:"i2",qty:0.25},{iid:"i3",qty:0.2},{iid:"i4",qty:3},{iid:"i5",qty:0.15},{iid:"i7",qty:0.3},{iid:"i9",qty:1},{iid:"i10",qty:8},{iid:"i11",qty:0.08}]},
+const DEFAULT_RECIPES = [
+  { id:"r1", name:'6" Single Layer Sponge', size:'6"', tiers:1, covering:"buttercream",
+    ing:[{iid:"i1",qty:0.3},{iid:"i2",qty:0.25},{iid:"i5",qty:0.2},{iid:"i7",qty:3},{iid:"i8",qty:0.15},{iid:"i11",qty:0.3},{iid:"i15",qty:0.005},{iid:"i26",qty:0.1},{iid:"i36",qty:1},{iid:"i39",qty:1}] },
+  { id:"r2", name:'6" Fondant Covered', size:'6"', tiers:1, covering:"fondant",
+    ing:[{iid:"i1",qty:0.3},{iid:"i2",qty:0.25},{iid:"i5",qty:0.2},{iid:"i7",qty:3},{iid:"i8",qty:0.15},{iid:"i14",qty:0.5},{iid:"i15",qty:0.005},{iid:"i17",qty:0.1},{iid:"i36",qty:1},{iid:"i39",qty:1}] },
+  { id:"r3", name:'8" Buttercream Cake', size:'8"', tiers:1, covering:"buttercream",
+    ing:[{iid:"i1",qty:0.5},{iid:"i2",qty:0.4},{iid:"i5",qty:0.3},{iid:"i7",qty:5},{iid:"i8",qty:0.25},{iid:"i11",qty:0.5},{iid:"i15",qty:0.008},{iid:"i26",qty:0.15},{iid:"i36",qty:1},{iid:"i39",qty:1}] },
+  { id:"r4", name:'8" Fondant Covered', size:'8"', tiers:1, covering:"fondant",
+    ing:[{iid:"i1",qty:0.5},{iid:"i2",qty:0.4},{iid:"i5",qty:0.3},{iid:"i7",qty:5},{iid:"i8",qty:0.25},{iid:"i14",qty:0.8},{iid:"i15",qty:0.008},{iid:"i17",qty:0.15},{iid:"i36",qty:1},{iid:"i39",qty:1}] },
+  { id:"r5", name:'10" Buttercream Cake', size:'10"', tiers:1, covering:"buttercream",
+    ing:[{iid:"i1",qty:0.8},{iid:"i2",qty:0.6},{iid:"i5",qty:0.5},{iid:"i7",qty:8},{iid:"i8",qty:0.4},{iid:"i11",qty:0.8},{iid:"i15",qty:0.012},{iid:"i26",qty:0.2},{iid:"i37",qty:1},{iid:"i40",qty:1}] },
+  { id:"r6", name:'2-Tier Fondant Wedding', size:'2-tier', tiers:2, covering:"fondant",
+    ing:[{iid:"i1",qty:1.0},{iid:"i2",qty:0.8},{iid:"i5",qty:0.6},{iid:"i7",qty:10},{iid:"i8",qty:0.5},{iid:"i14",qty:1.5},{iid:"i15",qty:0.015},{iid:"i17",qty:0.3},{iid:"i37",qty:1},{iid:"i38",qty:2},{iid:"i40",qty:1}] },
+  { id:"r7", name:'3-Tier Fondant', size:'3-tier', tiers:3, covering:"fondant",
+    ing:[{iid:"i1",qty:1.8},{iid:"i2",qty:1.4},{iid:"i5",qty:1.0},{iid:"i7",qty:18},{iid:"i8",qty:0.8},{iid:"i14",qty:2.5},{iid:"i15",qty:0.025},{iid:"i17",qty:0.5},{iid:"i38",qty:3},{iid:"i40",qty:1},{iid:"i41",qty:1}] },
+  { id:"r8", name:'Cupcakes ×12', size:'cupcakes×12', tiers:1, covering:"buttercream",
+    ing:[{iid:"i1",qty:0.2},{iid:"i2",qty:0.15},{iid:"i5",qty:0.15},{iid:"i7",qty:2},{iid:"i8",qty:0.1},{iid:"i11",qty:0.2},{iid:"i15",qty:0.003},{iid:"i26",qty:0.05},{iid:"i42",qty:1}] },
+  { id:"r9", name:'Cake Loaf', size:'loaf', tiers:1, covering:"plain",
+    ing:[{iid:"i1",qty:0.25},{iid:"i2",qty:0.2},{iid:"i5",qty:0.18},{iid:"i7",qty:3},{iid:"i8",qty:0.15},{iid:"i15",qty:0.004},{iid:"i26",qty:0.08}] },
 ]
 
-const FLAVOR_EXTRAS = {
-  "red velvet":[{iid:"i14",qty:0.05},{iid:"i12",qty:0.1}],
-  "chocolate":[{iid:"i14",qty:0.08}],
-  "strawberry":[{iid:"i15",qty:0.1}],
-  "vanilla":[],"lemon":[],"carrot":[],"orange":[],
+// Decoration extras - per unit cost items selectable per production
+const DECORATION_ITEMS = [
+  { id:"d1",  name:"Chocolate Drip",       iid:"i21", qty:0.15, label:"Chocolate drip / drizzle" },
+  { id:"d2",  name:"White Choc Drip",      iid:"i22", qty:0.15, label:"White chocolate drip" },
+  { id:"d3",  name:"Fresh Flowers",        iid:"i31", qty:3,    label:"Fresh flowers (3 pcs)" },
+  { id:"d4",  name:"Cake Topper",          iid:"i32", qty:1,    label:"Cake topper (1 pc)" },
+  { id:"d5",  name:"Oreo Decoration",      iid:"i30", qty:0.5,  label:"Oreo cookies decoration" },
+  { id:"d6",  name:"Ribbon",               iid:"i33", qty:1,    label:"Ribbon" },
+  { id:"d7",  name:"Wafer Paper Decor",    iid:"i34", qty:0.5,  label:"Wafer paper decoration" },
+  { id:"d8",  name:"Sprinkles / Shimmer",  iid:"i35", qty:1,    label:"Sprinkles / shimmer dust" },
+  { id:"d9",  name:"Cherry Topping",       iid:"i29", qty:0.1,  label:"Cherry topping" },
+  { id:"d10", name:"Gel Color Work",       iid:"i25", qty:0.2,  label:"Gel color painting" },
+  { id:"d11", name:"Fondant Figurines",    iid:"i14", qty:0.3,  label:"Fondant figurines" },
+  { id:"d12", name:"Gold/Silver Shimmer",  iid:"i35", qty:0.5,  label:"Gold/silver shimmer" },
+]
+
+const COVERING_EXTRAS = {
+  "buttercream": [{ iid:"i11", qty:0.4 }],
+  "fondant":     [{ iid:"i14", qty:0.8 }, { iid:"i17", qty:0.1 }],
+  "ganache":     [{ iid:"i21", qty:0.4 }],
+  "naked":       [],
 }
 
-const EXP_CATS = ["Ingredients","Packaging","Delivery","Equipment","Utilities","Marketing","Salaries","Rent","Miscellaneous"]
-const PAYMENT_TYPES = [{v:"full",l:"Full Price Paid"},{v:"gift",l:"Gift / Complimentary"},{v:"sample",l:"Sample / Tasting"},{v:"discount",l:"Discounted Price"}]
+const FLAVOR_EXTRAS = {
+  "red velvet":  [{ iid:"i23", qty:0.05 }, { iid:"i24", qty:5 }],
+  "chocolate":   [{ iid:"i20", qty:0.08 }],
+  "carrot":      [{ iid:"i28", qty:0.15 }],
+  "fruit cake":  [{ iid:"i27", qty:0.2 }],
+  "lemon":       [],
+  "vanilla":     [],
+  "strawberry":  [],
+  "banana":      [],
+  "orange":      [],
+}
 
-// ── helpers ───────────────────────────────────────────────────
-const fmt = n => `₦${Math.round(n||0).toLocaleString("en")}`
-const uid = () => "_"+Math.random().toString(36).slice(2,9)
-const today = () => new Date().toISOString().slice(0,10)
-const recipeCost = (r, inv) => !r ? 0 : r.ing.reduce((s,i)=>{const it=inv.find(x=>x.id===i.iid);return s+(it?it.cost*i.qty:0)},0)
-const calcCost = (r, inv, layers, flavors, pct) => {
-  const base = recipeCost(r, inv)
+const EXP_CATS = ["Ingredients","Packaging","Delivery","Decorations","Equipment","Utilities","Marketing","Salaries","Rent","Miscellaneous"]
+const PAYMENT_TYPES = [{v:"full",l:"Full Price"},{v:"deposit",l:"Deposit Received"},{v:"discount",l:"Discounted"},{v:"gift",l:"Gift"},{v:"sample",l:"Sample/Tasting"}]
+const ROLES = { owner:"Owner (Full Access)", production:"Production (Baker)", customer_service:"Customer Service" }
+
+// ═══════════════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════════════
+const fmt  = n => `₦${Math.round(n||0).toLocaleString("en")}`
+const uid  = () => "_"+Math.random().toString(36).slice(2,9)
+const today= () => new Date().toISOString().slice(0,10)
+
+const recipeCost = (r, inv) => !r ? 0 : r.ing.reduce((s,i)=>{ const it=inv.find(x=>x.id===i.iid); return s+(it?it.cost*i.qty:0) },0)
+
+const calcFullCost = (recipe, inv, flavors, decorationIds, accessoryPct) => {
+  if (!recipe) return 0
+  let cost = recipeCost(recipe, inv)
+  // flavor extras
   const fl = (flavors||"").toLowerCase().split(/[,+&]/).map(f=>f.trim()).filter(Boolean)
-  let extra = 0
-  fl.forEach(f=>(FLAVOR_EXTRAS[f]||[]).forEach(e=>{const it=inv.find(x=>x.id===e.iid);if(it)extra+=it.cost*e.qty*(layers||1)}))
-  return (base+extra)*(1+(pct||10)/100)
+  fl.forEach(f => (FLAVOR_EXTRAS[f]||[]).forEach(e=>{ const it=inv.find(x=>x.id===e.iid); if(it) cost+=it.cost*e.qty }))
+  // decoration extras
+  ;(decorationIds||[]).forEach(did => {
+    const decor = DECORATION_ITEMS.find(d=>d.id===did)
+    if (decor) { const it=inv.find(x=>x.id===decor.iid); if(it) cost+=it.cost*decor.qty }
+  })
+  return cost * (1 + (accessoryPct||10)/100)
 }
 
 async function callClaude(messages, system="") {
@@ -64,84 +145,160 @@ async function callClaude(messages, system="") {
     headers["x-api-key"] = import.meta.env.VITE_ANTHROPIC_KEY
     headers["anthropic-version"] = "2023-06-01"
   }
-  const res = await fetch(endpoint, {method:"POST",headers,body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1500,system,messages})})
+  const res = await fetch(endpoint, {method:"POST",headers,body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:2000,system,messages})})
   const data = await res.json()
   if (data.error) throw new Error(data.error.message)
   return data.content?.[0]?.text || ""
 }
 
-// ── UI primitives ─────────────────────────────────────────────
-function Btn({children,onClick,variant="primary",small,full,disabled,type="button"}){
-  const styles={primary:{bg:"var(--gold)",color:"#fff",border:"none"},ghost:{bg:"transparent",color:"var(--muted)",border:"1px solid var(--border)"},success:{bg:"#357A52",color:"#fff",border:"none"},danger:{bg:"#B03A2E",color:"#fff",border:"none"},outline:{bg:"transparent",color:"var(--gold)",border:"1px solid var(--gold)"},dark:{bg:"var(--sidebar)",color:"#fff",border:"none"}}[variant]||{}
-  return <button type={type} onClick={onClick} disabled={disabled} style={{background:styles.bg,color:styles.color,border:styles.border,borderRadius:8,padding:small?"5px 12px":"9px 18px",fontSize:small?12:13.5,fontWeight:500,cursor:disabled?"not-allowed":"pointer",width:full?"100%":"auto",opacity:disabled?0.5:1,fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>{children}</button>
+// Compress image before sending to API
+async function compressImage(base64, maxWidth=800) {
+  return new Promise(resolve => {
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      const scale = Math.min(1, maxWidth / img.width)
+      canvas.width = img.width * scale
+      canvas.height = img.height * scale
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+      resolve(canvas.toDataURL('image/jpeg', 0.7).split(',')[1])
+    }
+    img.src = `data:image/jpeg;base64,${base64}`
+  })
 }
-const iSt={width:"100%",padding:"9px 11px",borderRadius:8,border:"1px solid var(--border)",background:"var(--panel)",fontSize:13.5,color:"var(--text)",boxSizing:"border-box",outline:"none",fontFamily:"inherit"}
-function Inp({label,value,onChange,type="text",placeholder,small}){return<div style={{marginBottom:12}}>{label&&<label style={{fontSize:11,color:"var(--muted)",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:0.8,fontWeight:500}}>{label}</label>}<input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={{...iSt,fontSize:small?12:13.5}}/></div>}
-function Sel({label,value,onChange,options,placeholder="— Select —"}){return<div style={{marginBottom:12}}>{label&&<label style={{fontSize:11,color:"var(--muted)",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:0.8,fontWeight:500}}>{label}</label>}<select value={value} onChange={e=>onChange(e.target.value)} style={{...iSt,cursor:"pointer"}}><option value="">{placeholder}</option>{options.map(o=><option key={o.value||o} value={o.value||o}>{o.label||o}</option>)}</select></div>}
-function Card({children,style={}}){return<div style={{background:"var(--panel)",border:"1px solid var(--border)",borderRadius:12,padding:20,...style}}>{children}</div>}
-function Badge({children,color="gray"}){const m={green:["#E5F4EC","#2D7A50"],gold:["#FDF2DC","#9A6C1A"],red:["#FDEBE9","#912622"],blue:["#E8EFFC","#2355A0"],gray:["#F0EBE3","#6B5B45"],purple:["#F0EAFC","#6B32A0"]}[color]||["#F0EBE3","#6B5B45"];return<span style={{background:m[0],color:m[1],borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:500,whiteSpace:"nowrap"}}>{children}</span>}
-function Tabs({tabs,active,onChange}){return<div style={{display:"flex",gap:3,marginBottom:20,background:"var(--border)",borderRadius:10,padding:3,flexWrap:"wrap"}}>{tabs.map(t=><div key={t.v||t} onClick={()=>onChange(t.v||t)} style={{padding:"6px 14px",borderRadius:7,fontSize:12.5,fontWeight:active===(t.v||t)?500:400,cursor:"pointer",background:active===(t.v||t)?"var(--panel)":"transparent",color:active===(t.v||t)?"var(--text)":"var(--muted)",transition:"all 0.15s"}}>{t.l||t}</div>)}</div>}
-function SHead({title,sub}){return<div style={{marginBottom:22}}><h1 style={{fontFamily:"'Playfair Display',serif",fontSize:22,color:"var(--text)",fontWeight:600,margin:0}}>{title}</h1>{sub&&<p style={{color:"var(--muted)",fontSize:13,marginTop:3,marginBottom:0}}>{sub}</p>}</div>}
-function TH({cols}){return<thead><tr style={{background:"#EDE5D6"}}>{cols.map(c=><th key={c} style={{padding:"9px 12px",textAlign:"left",fontSize:10,textTransform:"uppercase",letterSpacing:0.8,color:"var(--muted)",fontWeight:500,whiteSpace:"nowrap"}}>{c}</th>)}</tr></thead>}
-function TR2({row,i}){return<tr style={{background:i%2===0?"var(--panel)":"#F8F3EA"}}>{row.map((c,j)=><td key={j} style={{padding:"10px 12px",fontSize:13,color:"var(--text)",borderBottom:"1px solid var(--border)"}}>{c}</td>)}</tr>}
-function Steps({steps,cur}){return<div style={{display:"flex",alignItems:"center",gap:4,marginBottom:22,flexWrap:"wrap"}}>{steps.map((s,i)=><div key={s} style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:24,height:24,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",background:cur>i+1?"#357A52":cur===i+1?"var(--gold)":"var(--border)",color:cur>=i+1?"#fff":"var(--muted)",fontSize:11,fontWeight:700,flexShrink:0}}>{cur>i+1?"✓":i+1}</div><span style={{fontSize:12.5,color:cur===i+1?"var(--text)":"var(--muted)",fontWeight:cur===i+1?500:400,marginRight:4}}>{s}</span>{i<steps.length-1&&<span style={{color:"var(--border)",fontSize:16,marginRight:4}}>›</span>}</div>)}</div>}
-function Spinner(){return<div style={{display:"flex",justifyContent:"center",padding:40}}><div style={{width:28,height:28,border:"3px solid var(--border)",borderTopColor:"var(--gold)",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>}
 
-// ══════════════════════════════════════════════════════════════
+// CSV parser — flexible column matching, handles BOM, semicolons, tabs
+function parseCSV(text) {
+  const clean = text.replace(/^\uFEFF/, '').trim()
+  const lines = clean.split(/\r?\n/).filter(l => l.trim())
+  if (lines.length < 2) return []
+  const firstLine = lines[0]
+  const delim = firstLine.includes(';') ? ';' : firstLine.includes('\t') ? '\t' : ','
+  const headers = firstLine.split(delim).map(h => h.trim().toLowerCase().replace(/['"]/g,'').replace(/[^a-z0-9]/g,' ').trim())
+
+  const findCol = (row, ...keys) => {
+    for (const k of keys) {
+      const idx = headers.findIndex(h => h.includes(k))
+      if (idx >= 0 && row[idx] !== undefined) return row[idx].trim().replace(/['"]/g,'')
+    }
+    return ''
+  }
+
+  return lines.slice(1).map(line => {
+    const row = line.split(delim)
+    const name = findCol(row,'name','item','ingredient','product','description')
+    if (!name) return null
+    return {
+      id: uid(),
+      name,
+      cat:      findCol(row,'cat','category','type','group','class') || 'General',
+      unit:     findCol(row,'unit','measure','uom','per') || 'kg',
+      cost:   +(findCol(row,'cost','price','rate','unit cost','price unit','price/unit','per unit') || '0').replace(/[,₦]/g,'') || 0,
+      stock:  +(findCol(row,'stock','quantity','qty','current stock','on hand','balance') || '0').replace(/[,]/g,'') || 0,
+      minStock:+(findCol(row,'min','minimum','minstock','reorder','alert') || '2').replace(/[,]/g,'') || 2,
+    }
+  }).filter(Boolean).filter(i => i.name)
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SHARED UI
+// ═══════════════════════════════════════════════════════════
+function Btn({children,onClick,variant="primary",small,full,disabled,style={}}){
+  const v={primary:{bg:"var(--gold)",color:"#fff",border:"none"},ghost:{bg:"transparent",color:"var(--muted)",border:"1px solid var(--border)"},success:{bg:"#357A52",color:"#fff",border:"none"},danger:{bg:"#B03A2E",color:"#fff",border:"none"},outline:{bg:"transparent",color:"var(--gold)",border:"1px solid var(--gold)"},dark:{bg:"var(--sidebar)",color:"var(--gold)",border:"none"}}[variant]||{}
+  return <button onClick={onClick} disabled={disabled} style={{...v,borderRadius:8,padding:small?"5px 11px":"8px 16px",fontSize:small?12:13.5,fontWeight:500,cursor:disabled?"not-allowed":"pointer",width:full?"100%":"auto",opacity:disabled?0.5:1,fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0,...style}}>{children}</button>
+}
+const iSt = {width:"100%",padding:"8px 10px",borderRadius:8,border:"1px solid var(--border)",background:"var(--panel)",fontSize:13.5,color:"var(--text)",boxSizing:"border-box",outline:"none",fontFamily:"inherit"}
+function Inp({label,value,onChange,type="text",placeholder,small}){return<div style={{marginBottom:11}}>{label&&<label style={{fontSize:10.5,color:"var(--muted)",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:0.8,fontWeight:500}}>{label}</label>}<input type={type} value={value||""} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={{...iSt,fontSize:small?12:13.5}}/></div>}
+function Sel({label,value,onChange,options,placeholder="— Select —"}){return<div style={{marginBottom:11}}>{label&&<label style={{fontSize:10.5,color:"var(--muted)",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:0.8,fontWeight:500}}>{label}</label>}<select value={value||""} onChange={e=>onChange(e.target.value)} style={{...iSt,cursor:"pointer"}}><option value="">{placeholder}</option>{options.map(o=><option key={o.value||o} value={o.value||o}>{o.label||o}</option>)}</select></div>}
+function Card({children,style={}}){return<div style={{background:"var(--panel)",border:"1px solid var(--border)",borderRadius:12,padding:18,...style}}>{children}</div>}
+function Badge({children,color="gray"}){const m={green:["#E5F4EC","#2D7A50"],gold:["#FDF2DC","#9A6C1A"],red:["#FDEBE9","#912622"],blue:["#E8EFFC","#2355A0"],purple:["#F0EAFC","#6B32A0"],gray:["#F0EBE3","#6B5B45"]}[color]||["#F0EBE3","#6B5B45"];return<span style={{background:m[0],color:m[1],borderRadius:20,padding:"2px 8px",fontSize:11,fontWeight:500,whiteSpace:"nowrap"}}>{children}</span>}
+function SHead({title,sub}){return<div style={{marginBottom:20}}><h1 style={{fontFamily:"'Playfair Display',serif",fontSize:22,color:"var(--text)",fontWeight:600,margin:0}}>{title}</h1>{sub&&<p style={{color:"var(--muted)",fontSize:13,marginTop:3,marginBottom:0}}>{sub}</p>}</div>}
+function Tabs({tabs,active,onChange}){return<div style={{display:"flex",gap:3,marginBottom:18,background:"var(--border)",borderRadius:10,padding:3,flexWrap:"wrap"}}>{tabs.map(t=><div key={t.v||t} onClick={()=>onChange(t.v||t)} style={{padding:"6px 13px",borderRadius:7,fontSize:12.5,fontWeight:active===(t.v||t)?500:400,cursor:"pointer",background:active===(t.v||t)?"var(--panel)":"transparent",color:active===(t.v||t)?"var(--text)":"var(--muted)",transition:"all 0.15s"}}>{t.l||t}</div>)}</div>}
+function TH({cols}){return<thead><tr style={{background:"#EDE5D6"}}>{cols.map(c=><th key={c} style={{padding:"8px 10px",textAlign:"left",fontSize:10,textTransform:"uppercase",letterSpacing:0.8,color:"var(--muted)",fontWeight:500,whiteSpace:"nowrap"}}>{c}</th>)}</tr></thead>}
+function TR2({row,i,onClick}){return<tr onClick={onClick} style={{background:i%2===0?"var(--panel)":"#F8F3EA",cursor:onClick?"pointer":"default"}} onMouseEnter={e=>{if(onClick)e.currentTarget.style.background="#F0E9DB"}} onMouseLeave={e=>{if(onClick)e.currentTarget.style.background=i%2===0?"var(--panel)":"#F8F3EA"}}>{row.map((c,j)=><td key={j} style={{padding:"9px 10px",fontSize:13,color:"var(--text)",borderBottom:"1px solid var(--border)"}}>{c}</td>)}</tr>}
+function Steps({steps,cur}){return<div style={{display:"flex",alignItems:"center",gap:4,marginBottom:20,flexWrap:"wrap"}}>{steps.map((s,i)=><div key={s} style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:22,height:22,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",background:cur>i+1?"#357A52":cur===i+1?"var(--gold)":"var(--border)",color:cur>=i+1?"#fff":"var(--muted)",fontSize:11,fontWeight:700}}>{cur>i+1?"✓":i+1}</div><span style={{fontSize:12,color:cur===i+1?"var(--text)":"var(--muted)",fontWeight:cur===i+1?500:400,marginRight:4}}>{s}</span>{i<steps.length-1&&<span style={{color:"var(--border)",marginRight:4}}>›</span>}</div>)}</div>}
+function Spinner(){return<div style={{display:"flex",justifyContent:"center",alignItems:"center",padding:32}}><div style={{width:26,height:26,border:"3px solid var(--border)",borderTopColor:"var(--gold)",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/></div>}
+function Modal({title,children,onClose}){return<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}><div style={{background:"var(--panel)",borderRadius:14,padding:24,maxWidth:560,width:"100%",maxHeight:"90vh",overflowY:"auto"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><div style={{fontFamily:"'Playfair Display',serif",fontSize:17,fontWeight:600,color:"var(--text)"}}>{title}</div><button onClick={onClose} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"var(--muted)"}}>×</button></div>{children}</div></div>}
+function Alert({msg,color="gold",onClose}){if(!msg)return null;const c={gold:["#FFF9EE","#9A6C1A","var(--gold)"],red:["#FDEBE9","#912622","#B03A2E"],green:["#E5F4EC","#2D7A50","#357A52"]}[color]||["#FFF9EE","#9A6C1A","var(--gold)"];return<div style={{padding:"10px 14px",background:c[0],color:c[1],borderRadius:8,marginBottom:12,fontSize:13,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span>{msg}</span>{onClose&&<button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:c[2],fontWeight:700,marginLeft:8}}>×</button>}</div>}
+
+// ═══════════════════════════════════════════════════════════
+//  LOGIN
+// ═══════════════════════════════════════════════════════════
+function Login({onLogin}){
+  const [users, setUsers] = useState(loadUsers())
+  const [pin, setPin] = useState("")
+  const [err, setErr] = useState("")
+  const [selUser, setSelUser] = useState(users[0]?.id||"")
+
+  const attempt = () => {
+    const u = users.find(x => x.id === selUser)
+    if (!u) return setErr("Select a user")
+    if (u.pin !== pin) { setErr("Wrong PIN"); setPin(""); return }
+    setErr("")
+    onLogin(u)
+  }
+
+  return (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"var(--bg)"}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500&display=swap');*{box-sizing:border-box}body{margin:0}:root{--gold:#C8912A;--sidebar:#140801;--bg:#F4EEE4;--panel:#FDFAF4;--text:#291608;--muted:#8C6E52;--border:#E0D3BB}`}</style>
+      <Card style={{width:"100%",maxWidth:360,padding:32,textAlign:"center"}}>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:"var(--gold)",fontWeight:700,marginBottom:4}}>LayerLedger</div>
+        <div style={{fontSize:12,color:"var(--muted)",marginBottom:28,textTransform:"uppercase",letterSpacing:2}}>Bakery Bookkeeping</div>
+        <Sel label="Select User" value={selUser} onChange={setSelUser} options={users.filter(u=>u.active).map(u=>({value:u.id,label:`${u.name} (${ROLES[u.role]?.split(" ")[0]})`}))}/>
+        <div style={{marginBottom:12}}><label style={{fontSize:10.5,color:"var(--muted)",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:0.8,fontWeight:500}}>PIN</label><input type="password" value={pin} onChange={e=>setPin(e.target.value)} onKeyDown={e=>e.key==="Enter"&&attempt()} placeholder="Enter PIN" maxLength={8} style={{...iSt,textAlign:"center",letterSpacing:8,fontSize:20}}/></div>
+        {err&&<div style={{color:"#B03A2E",fontSize:12.5,marginBottom:10}}>⚠ {err}</div>}
+        <Btn full onClick={attempt}>Login →</Btn>
+        <div style={{marginTop:16,fontSize:11.5,color:"var(--muted)"}}>Default owner PIN: 1234</div>
+      </Card>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════
 //  DASHBOARD
-// ══════════════════════════════════════════════════════════════
-function Dashboard({productions,inventory,expenses,setView}){
+// ═══════════════════════════════════════════════════════════
+function Dashboard({productions,inventory,expenses,setView,user}){
   const m=new Date().toISOString().slice(0,7)
   const mp=productions.filter(p=>p.deliveryDate?.startsWith(m))
-  const rev=mp.filter(p=>p.paymentType==="full"||p.paymentType==="discount").reduce((s,p)=>s+(p.salePrice||0),0)
+  const paid=mp.filter(p=>p.paymentType==="full"||p.paymentType==="discount"||p.paymentType==="deposit")
+  const rev=paid.reduce((s,p)=>s+(p.salePrice||0),0)
   const cost=mp.reduce((s,p)=>s+(p.cost||0)+(p.deliveryCost||0),0)
   const expTotal=expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+(e.amount||0),0)
   const profit=rev-cost-expTotal
-  const lowStock=inventory.filter(i=>i.stock<=(i.minStock||3))
+  const low=inventory.filter(i=>i.stock<=(i.minStock||3))
   const monthLabel=new Date().toLocaleDateString("en-NG",{month:"long",year:"numeric"})
-  const gifts=mp.filter(p=>p.paymentType==="gift"||p.paymentType==="sample").length
+  const canAccess = (v) => user?.role === 'owner' || (user?.role === 'customer_service' && ['records'].includes(v))
 
   return <div>
-    <SHead title="Dashboard" sub={`${monthLabel} — your bakery at a glance`}/>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,marginBottom:20}}>
-      {[{label:"Monthly Revenue",val:fmt(rev),sub:`${mp.length} orders`,accent:"var(--gold)"},
-        {label:"Production Cost",val:fmt(cost),sub:"ingredients + delivery",accent:"#2A5F9A"},
-        {label:"Other Expenses",val:fmt(expTotal),sub:`${expenses.filter(e=>e.date?.startsWith(m)).length} entries`,accent:"#8C6E52"},
-        {label:"Net Profit",val:fmt(profit),sub:`${gifts} gift/sample`,accent:profit>=0?"#357A52":"#B03A2E"},
-      ].map(s=><Card key={s.label} style={{borderTop:`3px solid ${s.accent}`}}>
-        <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{s.label}</div>
+    <SHead title={`Good day, ${user?.name?.split(" ")[0]}! 👋`} sub={`${monthLabel} overview`}/>
+    {user?.role==="owner"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginBottom:18}}>
+      {[{label:"Revenue",val:fmt(rev),sub:`${paid.length} paid orders`,a:"var(--gold)"},{label:"Prod. Cost",val:fmt(cost),sub:"incl. delivery",a:"#2A5F9A"},{label:"Expenses",val:fmt(expTotal),sub:"other costs",a:"#8C6E52"},{label:"Net Profit",val:fmt(profit),sub:`${mp.length} total orders`,a:profit>=0?"#357A52":"#B03A2E"}].map(s=><Card key={s.label} style={{borderTop:`3px solid ${s.a}`}}>
+        <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:5}}>{s.label}</div>
         <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700,color:"var(--text)"}}>{s.val}</div>
-        <div style={{fontSize:11.5,color:"var(--muted)",marginTop:3}}>{s.sub}</div>
+        <div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>{s.sub}</div>
       </Card>)}
-    </div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+    </div>}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
       <Card>
-        <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:12}}>Recent Productions</div>
-        {productions.length===0?<div style={{fontSize:13,color:"var(--muted)"}}>No productions yet.</div>:
-        productions.slice(0,5).map(p=>{
-          const ptColor={full:"green",gift:"purple",sample:"blue",discount:"gold"}[p.paymentType]||"gray"
-          return <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid var(--border)"}}>
-            <div><div style={{fontSize:13,fontWeight:500}}>{p.size} · {p.covering}</div><div style={{fontSize:11.5,color:"var(--muted)"}}>{p.client} · {p.deliveryDate}</div></div>
-            <div style={{textAlign:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3}}>
-              <Badge color={ptColor}>{p.paymentType}</Badge>
-              <div style={{fontSize:12.5,fontWeight:600,color:"var(--gold)"}}>{fmt(p.salePrice)}</div>
-            </div>
-          </div>
-        })}
-        <div style={{marginTop:12}}><Btn small variant="outline" onClick={()=>setView("records")}>View All →</Btn></div>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:12}}>Recent Orders</div>
+        {productions.length===0?<div style={{fontSize:13,color:"var(--muted)"}}>No productions recorded yet.</div>:
+        productions.slice(0,5).map(p=><div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:"1px solid var(--border)"}}>
+          <div><div style={{fontSize:13,fontWeight:500}}>{p.size} · {p.covering}</div><div style={{fontSize:11.5,color:"var(--muted)"}}>{p.client} · {p.deliveryDate}</div></div>
+          <div style={{textAlign:"right"}}><Badge color={{full:"green",gift:"purple",sample:"blue",discount:"gold",deposit:"blue"}[p.paymentType]||"gray"}>{p.paymentType}</Badge>{user?.role==="owner"&&<div style={{fontSize:12,color:"var(--gold)",fontWeight:600,marginTop:2}}>{fmt(p.salePrice)}</div>}</div>
+        </div>)}
+        <div style={{marginTop:10}}><Btn small variant="outline" onClick={()=>setView("records")}>View All →</Btn></div>
       </Card>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
-        <Card style={{background:lowStock.length>0?"#FFF9EE":"var(--panel)",borderColor:lowStock.length>0?"var(--gold)":"var(--border)"}}>
-          <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:10}}>{lowStock.length>0?`⚠ ${lowStock.length} Low Stock Items`:"✓ Stock Levels OK"}</div>
-          {lowStock.length===0?<div style={{fontSize:13,color:"#357A52"}}>All items stocked above minimum.</div>:
-          lowStock.slice(0,4).map(i=><div key={i.id} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid var(--border)"}}>
+        {low.length>0&&<Card style={{background:"#FFF9EE",borderColor:"var(--gold)"}}>
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:8}}>⚠ {low.length} Items Low on Stock</div>
+          {low.slice(0,4).map(i=><div key={i.id} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid var(--border)"}}>
             <span style={{fontSize:12.5}}>{i.name}</span><Badge color={i.stock===0?"red":"gold"}>{i.stock} {i.unit}</Badge>
           </div>)}
-          {lowStock.length>0&&<div style={{marginTop:10}}><Btn small variant="outline" onClick={()=>setView("shopping")}>Generate Shopping List →</Btn></div>}
-        </Card>
+          <div style={{marginTop:8}}><Btn small variant="outline" onClick={()=>setView("shopping")}>Generate Shopping List →</Btn></div>
+        </Card>}
         <Card>
           <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:10}}>Quick Actions</div>
-          {[{icon:"🎂",label:"New cake production",view:"production"},{icon:"🧾",label:"Scan receipt",view:"receipts"},{icon:"💸",label:"Add cash expense",view:"expenses"},{icon:"📊",label:"Monthly P&L report",view:"reports"},{icon:"🛒",label:"Generate shopping list",view:"shopping"},{icon:"📄",label:"Create invoice",view:"invoices"}].map(a=><div key={a.view} onClick={()=>setView(a.view)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 8px",borderRadius:8,cursor:"pointer",marginBottom:2,transition:"background 0.15s"}} onMouseEnter={e=>e.currentTarget.style.background="#F0E9DB"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+          {[{icon:"🎂",label:"New production entry",view:"production",roles:["owner","production"]},{icon:"🧾",label:"Scan purchase receipt",view:"receipts",roles:["owner","production"]},{icon:"💸",label:"Log cash expense",view:"expenses",roles:["owner"]},{icon:"📊",label:"Monthly P&L report",view:"reports",roles:["owner"]},{icon:"📄",label:"Create invoice",view:"invoices",roles:["owner","customer_service"]},{icon:"🛒",label:"Shopping list",view:"shopping",roles:["owner","production"]}].filter(a=>a.roles.includes(user?.role)).map(a=><div key={a.view} onClick={()=>setView(a.view)} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 8px",borderRadius:8,cursor:"pointer",marginBottom:2}} onMouseEnter={e=>e.currentTarget.style.background="#F0E9DB"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
             <span style={{fontSize:15}}>{a.icon}</span><span style={{fontSize:13}}>{a.label}</span>
           </div>)}
         </Card>
@@ -150,278 +307,327 @@ function Dashboard({productions,inventory,expenses,setView}){
   </div>
 }
 
-// ══════════════════════════════════════════════════════════════
-//  SETUP / MASTER LIST
-// ══════════════════════════════════════════════════════════════
-function Setup({inventory,setInventory,accessoryPct,setAccessoryPct,company,setCompany}){
+// ═══════════════════════════════════════════════════════════
+//  MASTER LIST (editable inventory + editable recipes)
+// ═══════════════════════════════════════════════════════════
+function MasterList({inventory,setInventory,recipes,setRecipes,user}){
   const [tab,setTab]=useState("inventory")
-  const [addInv,setAddInv]=useState(false)
-  const [ni,setNi]=useState({name:"",cat:"",unit:"kg",cost:"",stock:"",minStock:""})
-  const [openRid,setOpenRid]=useState(null)
-  const [restock,setRestock]=useState({})
-  const [csvMsg,setCsvMsg]=useState("")
+  const [editId,setEditId]=useState(null)
+  const [editRow,setEditRow]=useState({})
+  const [addMode,setAddMode]=useState(false)
+  const [newItem,setNewItem]=useState({name:"",cat:"",unit:"kg",cost:"",stock:"",minStock:"3"})
+  const [msg,setMsg]=useState("")
+  const [msgColor,setMsgColor]=useState("gold")
+  const [recipeModal,setRecipeModal]=useState(null)
   const csvRef=useRef()
-  const logoRef=useRef()
+  const isOwner = user?.role==="owner"
 
-  const saveInv=async()=>{
-    if(!ni.name||!ni.cost)return
-    const updated=[...inventory,{...ni,id:uid(),cost:+ni.cost,stock:+ni.stock||0,minStock:+ni.minStock||2}]
-    setInventory(updated);await saveInventory(updated)
-    setNi({name:"",cat:"",unit:"kg",cost:"",stock:"",minStock:""});setAddInv(false)
+  const showMsg = (m,c="gold") => { setMsg(m); setMsgColor(c); setTimeout(()=>setMsg(""),4000) }
+
+  // ── Inventory ──
+  const startEdit = (item) => { setEditId(item.id); setEditRow({...item}) }
+  const saveEdit = async () => {
+    const updated = inventory.map(i=>i.id===editId?{...editRow,cost:+editRow.cost,stock:+editRow.stock,minStock:+editRow.minStock||2}:i)
+    setInventory(updated); await saveInventory(updated); setEditId(null); showMsg("✓ Item updated","green")
   }
-  const doRestock=async(id)=>{
-    const qty=+restock[id];if(!qty)return
-    const updated=inventory.map(i=>i.id===id?{...i,stock:parseFloat((i.stock+qty).toFixed(3))}:i)
-    setInventory(updated);await saveInventory(updated)
-    setRestock(r=>({...r,[id]:""}))
+  const deleteItem = async (id) => {
+    if(!confirm("Delete this item?"))return
+    const updated=inventory.filter(i=>i.id!==id); setInventory(updated); await saveInventory(updated); showMsg("Item deleted")
   }
-  const handleCSV=e=>{
-    const file=e.target.files[0];if(!file)return
+  const addItem = async () => {
+    if(!newItem.name||!newItem.cost)return showMsg("Name and cost are required")
+    const updated=[...inventory,{...newItem,id:uid(),cost:+newItem.cost,stock:+newItem.stock||0,minStock:+newItem.minStock||2}]
+    setInventory(updated); await saveInventory(updated); setNewItem({name:"",cat:"",unit:"kg",cost:"",stock:"",minStock:"3"}); setAddMode(false); showMsg("✓ Item added","green")
+  }
+
+  const handleCSV = e => {
+    const file=e.target.files[0]; if(!file)return; e.target.value=""
     const reader=new FileReader()
     reader.onload=async ev=>{
       try{
-        const lines=ev.target.result.split("\n").filter(l=>l.trim())
-        const headers=lines[0].toLowerCase().split(",").map(h=>h.trim())
-        const ni=lines.slice(1).map(line=>{
-          const cols=line.split(",").map(c=>c.trim().replace(/^"|"$/g,""))
-          const obj={}
-          headers.forEach((h,i)=>obj[h]=cols[i]||"")
-          return {id:uid(),name:obj.name||obj.item||"",cat:obj.category||obj.cat||"",unit:obj.unit||"kg",cost:+(obj.cost||obj.price||0),stock:+(obj.stock||obj.quantity||0),minStock:+(obj.min||obj.minstock||2)}
-        }).filter(i=>i.name)
-        const updated=[...inventory,...ni]
-        setInventory(updated);await saveInventory(updated)
-        setCsvMsg(`✓ ${ni.length} items imported successfully`)
-      }catch{setCsvMsg("⚠ Could not read file. Use CSV with columns: name, category, unit, cost, stock")}
+        const items=parseCSV(ev.target.result)
+        if(items.length===0){ showMsg("⚠ No items found. Check column headers: name, category, unit, cost, stock","red"); return }
+        const updated=[...inventory,...items.filter(ni=>!inventory.find(i=>i.name.toLowerCase()===ni.name.toLowerCase()))]
+        setInventory(updated); await saveInventory(updated)
+        showMsg(`✓ ${items.length} items imported successfully (${updated.length-inventory.length} new, duplicates skipped)`,"green")
+      }catch(err){ showMsg(`⚠ Import failed: ${err.message}`,"red") }
     }
     reader.readAsText(file)
   }
-  const handleLogo=e=>{
-    const file=e.target.files[0];if(!file)return
-    const reader=new FileReader()
-    reader.onload=ev=>{
-      const updated={...company,logo:ev.target.result}
-      setCompany(updated);saveCompanySettings(updated)
-    }
-    reader.readAsDataURL(file)
+
+  const restock = async (id, qty) => {
+    if(!qty||+qty<=0)return
+    const updated=inventory.map(i=>i.id===id?{...i,stock:parseFloat((i.stock+(+qty)).toFixed(3))}:i)
+    setInventory(updated); await saveInventory(updated)
   }
 
-  return <div>
-    <SHead title="Master List & Settings" sub="Set up once — every calculation pulls from here."/>
-    <Tabs tabs={[{v:"inventory",l:"Inventory"},{v:"recipes",l:"Base Recipes"},{v:"flavours",l:"Flavour Extras"},{v:"company",l:"Company Settings"},{v:"pricing",l:"Pricing Settings"}]} active={tab} onChange={setTab}/>
+  // ── Recipes ──
+  const openRecipe = (r) => setRecipeModal(r ? {...r} : {id:uid(),name:"",size:"",tiers:1,covering:"buttercream",ing:[]})
+  const saveRecipe = async () => {
+    if(!recipeModal.name||!recipeModal.size)return showMsg("Name and size required")
+    const updated = recipes.find(r=>r.id===recipeModal.id) ? recipes.map(r=>r.id===recipeModal.id?recipeModal:r) : [...recipes, recipeModal]
+    setRecipes(updated); saveRecipes(updated); setRecipeModal(null); showMsg("✓ Recipe saved","green")
+  }
+  const deleteRecipe = async (id) => {
+    if(!confirm("Delete this recipe?"))return
+    const updated=recipes.filter(r=>r.id!==id); setRecipes(updated); saveRecipes(updated); showMsg("Recipe deleted")
+  }
+  const addIngToRecipe = () => setRecipeModal(r=>({...r,ing:[...r.ing,{iid:"",qty:""}]}))
+  const updateIng = (idx,field,val) => setRecipeModal(r=>({...r,ing:r.ing.map((ing,i)=>i===idx?{...ing,[field]:val}:ing)}))
+  const removeIng = (idx) => setRecipeModal(r=>({...r,ing:r.ing.filter((_,i)=>i!==idx)}))
 
+  const cats=[...new Set(inventory.map(i=>i.cat))].sort()
+
+  return <div>
+    <SHead title="Master List" sub="All your ingredients, recipes, and decorations — changes here update all calculations."/>
+    <Alert msg={msg} color={msgColor} onClose={()=>setMsg("")}/>
+    <Tabs tabs={[{v:"inventory",l:"Inventory"},{v:"recipes",l:"Base Recipes"},{v:"decorations",l:"Decoration Extras"}]} active={tab} onChange={setTab}/>
+
+    {/* ── INVENTORY ── */}
     {tab==="inventory"&&<div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
+      {isOwner&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
         <span style={{fontSize:13,color:"var(--muted)"}}>{inventory.length} items · {fmt(inventory.reduce((s,i)=>s+i.cost*i.stock,0))} total value</span>
-        <div style={{display:"flex",gap:8}}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           <Btn small variant="ghost" onClick={()=>csvRef.current?.click()}>📥 Import CSV</Btn>
-          <input ref={csvRef} type="file" accept=".csv" onChange={handleCSV} style={{display:"none"}}/>
-          <Btn small onClick={()=>setAddInv(!addInv)}>+ Add Item</Btn>
+          <input ref={csvRef} type="file" accept=".csv,.xlsx,.xls,.txt" onChange={handleCSV} style={{display:"none"}}/>
+          <Btn small onClick={()=>setAddMode(!addMode)}>+ Add Item</Btn>
         </div>
-      </div>
-      {csvMsg&&<div style={{padding:"8px 12px",background:csvMsg.startsWith("✓")?"#EEF8F3":"#FDEBE9",borderRadius:8,fontSize:12.5,marginBottom:12,color:csvMsg.startsWith("✓")?"#357A52":"#B03A2E"}}>{csvMsg}</div>}
-      <div style={{fontSize:11.5,color:"var(--muted)",marginBottom:10}}>CSV format: name, category, unit, cost, stock, minStock</div>
-      {addInv&&<Card style={{marginBottom:14,background:"#FFF9EE",borderColor:"var(--gold)"}}>
+      </div>}
+      <div style={{fontSize:11.5,color:"var(--muted)",marginBottom:8}}>CSV columns: name, category, unit, cost, stock, minStock (flexible — we'll match similar names)</div>
+      {addMode&&isOwner&&<Card style={{marginBottom:12,background:"#FFF9EE",borderColor:"var(--gold)"}}>
         <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:12}}>New Item</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10}}>
-          <Inp label="Name *" value={ni.name} onChange={v=>setNi(p=>({...p,name:v}))} placeholder="e.g. Dark Chocolate"/>
-          <Inp label="Category" value={ni.cat} onChange={v=>setNi(p=>({...p,cat:v}))} placeholder="Dry Goods…"/>
-          <Inp label="Unit" value={ni.unit} onChange={v=>setNi(p=>({...p,unit:v}))} placeholder="kg/pcs/L"/>
-          <Inp label="Cost/Unit (₦) *" type="number" value={ni.cost} onChange={v=>setNi(p=>({...p,cost:v}))}/>
-          <Inp label="Opening Stock" type="number" value={ni.stock} onChange={v=>setNi(p=>({...p,stock:v}))}/>
-          <Inp label="Min Stock Alert" type="number" value={ni.minStock} onChange={v=>setNi(p=>({...p,minStock:v}))}/>
+          <Inp label="Name *" value={newItem.name} onChange={v=>setNewItem(p=>({...p,name:v}))} placeholder="Ingredient name"/>
+          <Inp label="Category" value={newItem.cat} onChange={v=>setNewItem(p=>({...p,cat:v}))} placeholder="Dry Goods…"/>
+          <Inp label="Unit" value={newItem.unit} onChange={v=>setNewItem(p=>({...p,unit:v}))} placeholder="kg/pcs/L"/>
+          <Inp label="Cost/Unit (₦) *" type="number" value={newItem.cost} onChange={v=>setNewItem(p=>({...p,cost:v}))}/>
+          <Inp label="Opening Stock" type="number" value={newItem.stock} onChange={v=>setNewItem(p=>({...p,stock:v}))}/>
+          <Inp label="Min Stock Alert" type="number" value={newItem.minStock} onChange={v=>setNewItem(p=>({...p,minStock:v}))}/>
         </div>
-        <div style={{display:"flex",gap:8}}><Btn onClick={saveInv}>Save</Btn><Btn variant="ghost" onClick={()=>setAddInv(false)}>Cancel</Btn></div>
+        <div style={{display:"flex",gap:8}}><Btn onClick={addItem}>Save</Btn><Btn variant="ghost" onClick={()=>setAddMode(false)}>Cancel</Btn></div>
       </Card>}
-      <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",background:"var(--panel)",borderRadius:10,overflow:"hidden",border:"1px solid var(--border)"}}>
-        <TH cols={["Item","Category","Unit","Cost/Unit","Stock","Min","Value","Restock"]}/>
-        <tbody>{inventory.map((item,i)=><TR2 key={item.id} i={i} row={[
-          <span style={{fontWeight:500}}>{item.name}</span>,
-          <span style={{color:"var(--muted)",fontSize:12}}>{item.cat}</span>,
-          item.unit,fmt(item.cost),
-          <span style={{color:item.stock<=(item.minStock||3)?"#B03A2E":"var(--text)",fontWeight:item.stock<=(item.minStock||3)?600:400}}>{item.stock}</span>,
-          <span style={{color:"var(--muted)",fontSize:12}}>{item.minStock||2}</span>,
-          <span style={{color:"var(--gold)",fontWeight:500}}>{fmt(item.cost*item.stock)}</span>,
-          <div style={{display:"flex",gap:5,alignItems:"center"}}>
-            <input type="number" placeholder="qty" value={restock[item.id]||""} onChange={e=>setRestock(r=>({...r,[item.id]:e.target.value}))} style={{...iSt,width:60,padding:"4px 6px",fontSize:12}}/>
-            <Btn small variant="outline" onClick={()=>doRestock(item.id)}>+</Btn>
-          </div>,
-        ]}/>) }</tbody>
-      </table></div>
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",background:"var(--panel)",borderRadius:10,overflow:"hidden",border:"1px solid var(--border)"}}>
+          <TH cols={["Item","Category","Unit","Cost/Unit","Stock","Min","Value",...(isOwner?["Restock","Actions"]:[])]}/>
+          <tbody>{inventory.map((item,i)=>{
+            const editing=editId===item.id
+            return <tr key={item.id} style={{background:i%2===0?"var(--panel)":"#F8F3EA"}}>
+              {editing?<>
+                <td style={{padding:"6px 8px"}}><input value={editRow.name} onChange={e=>setEditRow(r=>({...r,name:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12}}/></td>
+                <td style={{padding:"6px 8px"}}><input value={editRow.cat} onChange={e=>setEditRow(r=>({...r,cat:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12}}/></td>
+                <td style={{padding:"6px 8px"}}><input value={editRow.unit} onChange={e=>setEditRow(r=>({...r,unit:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12,width:60}}/></td>
+                <td style={{padding:"6px 8px"}}><input type="number" value={editRow.cost} onChange={e=>setEditRow(r=>({...r,cost:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12}}/></td>
+                <td style={{padding:"6px 8px"}}><input type="number" value={editRow.stock} onChange={e=>setEditRow(r=>({...r,stock:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12}}/></td>
+                <td style={{padding:"6px 8px"}}><input type="number" value={editRow.minStock} onChange={e=>setEditRow(r=>({...r,minStock:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12,width:50}}/></td>
+                <td style={{padding:"6px 8px",fontSize:12}}>{fmt(editRow.cost*editRow.stock)}</td>
+                <td colSpan={2} style={{padding:"6px 8px"}}><div style={{display:"flex",gap:4}}><Btn small variant="success" onClick={saveEdit}>✓</Btn><Btn small variant="ghost" onClick={()=>setEditId(null)}>✗</Btn></div></td>
+              </>:<>
+                <td style={{padding:"9px 10px",fontWeight:500,fontSize:13}}>{item.name}</td>
+                <td style={{padding:"9px 10px",color:"var(--muted)",fontSize:12}}>{item.cat}</td>
+                <td style={{padding:"9px 10px",fontSize:13}}>{item.unit}</td>
+                <td style={{padding:"9px 10px",fontSize:13}}>{fmt(item.cost)}</td>
+                <td style={{padding:"9px 10px",color:item.stock<=(item.minStock||3)?"#B03A2E":"var(--text)",fontWeight:item.stock<=(item.minStock||3)?600:400,fontSize:13}}>{item.stock}</td>
+                <td style={{padding:"9px 10px",color:"var(--muted)",fontSize:12}}>{item.minStock||2}</td>
+                <td style={{padding:"9px 10px",color:"var(--gold)",fontWeight:500,fontSize:13}}>{fmt(item.cost*item.stock)}</td>
+                {isOwner&&<>
+                  <td style={{padding:"9px 10px"}}><RestockCell id={item.id} unit={item.unit} onRestock={restock}/></td>
+                  <td style={{padding:"9px 10px"}}><div style={{display:"flex",gap:4}}><Btn small variant="ghost" onClick={()=>startEdit(item)}>✎</Btn><Btn small variant="danger" onClick={()=>deleteItem(item.id)}>×</Btn></div></td>
+                </>}
+              </>}
+            </tr>
+          })}</tbody>
+        </table>
+      </div>
     </div>}
 
+    {/* ── RECIPES ── */}
     {tab==="recipes"&&<div>
-      <div style={{marginBottom:12,padding:"10px 14px",background:"#FFF9EE",borderRadius:8,border:"1px solid var(--gold)",fontSize:13,lineHeight:1.7}}>
-        Each base recipe maps to a <strong>size + covering</strong>. The app picks the matching recipe automatically when you log a production.
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <span style={{fontSize:13,color:"var(--muted)"}}>{recipes.length} recipes</span>
+        {isOwner&&<Btn small onClick={()=>openRecipe(null)}>+ New Recipe</Btn>}
       </div>
-      {RECIPES.map(r=>{
-        const cost=recipeCost(r,inventory);const open=openRid===r.id
-        return <Card key={r.id} style={{marginBottom:10,cursor:"pointer"}} onClick={()=>setOpenRid(open?null:r.id)}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div><div style={{fontWeight:600,fontSize:14}}>{r.name}</div><div style={{fontSize:12,color:"var(--muted)",marginTop:2}}>Base cost: <strong style={{color:"var(--gold)"}}>{fmt(cost)}</strong></div></div>
-            <div style={{display:"flex",gap:8,alignItems:"center"}}><Badge color={r.covering==="fondant"?"blue":"gold"}>{r.covering}</Badge><span style={{color:"var(--muted)"}}>{open?"▴":"▾"}</span></div>
+      {recipes.map(r=>{
+        const cost=recipeCost(r,inventory)
+        return <Card key={r.id} style={{marginBottom:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div>
+              <div style={{fontWeight:600,fontSize:14}}>{r.name}</div>
+              <div style={{fontSize:12,color:"var(--muted)",marginTop:2}}>Size: {r.size} · {r.covering} · {r.tiers} tier(s) · {r.ing.length} ingredients</div>
+              <div style={{fontSize:13,color:"var(--gold)",fontWeight:600,marginTop:3}}>Base cost: {fmt(cost)}</div>
+            </div>
+            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+              <Badge color={r.covering==="fondant"?"blue":r.covering==="ganache"?"purple":"gold"}>{r.covering}</Badge>
+              {isOwner&&<><Btn small variant="ghost" onClick={()=>openRecipe(r)}>✎ Edit</Btn><Btn small variant="danger" onClick={()=>deleteRecipe(r.id)}>×</Btn></>}
+            </div>
           </div>
-          {open&&<div style={{marginTop:14,borderTop:"1px solid var(--border)",paddingTop:14}}>
-            <table style={{width:"100%",fontSize:13}}><thead><tr>{["Ingredient","Qty","Line Cost"].map(h=><th key={h} style={{textAlign:h==="Ingredient"?"left":"right",fontSize:10,color:"var(--muted)",textTransform:"uppercase",paddingBottom:6}}>{h}</th>)}</tr></thead>
-            <tbody>{r.ing.map(ing=>{const it=inventory.find(x=>x.id===ing.iid);return it?<tr key={ing.iid}><td style={{padding:"4px 0"}}>{it.name}</td><td style={{textAlign:"right",color:"var(--muted)"}}>{ing.qty}{it.unit}</td><td style={{textAlign:"right",fontWeight:500}}>{fmt(it.cost*ing.qty)}</td></tr>:null})}
-            <tr style={{borderTop:"1px solid var(--border)"}}><td colSpan={2} style={{padding:"6px 0",textAlign:"right",fontWeight:700,paddingRight:8}}>Base Cost</td><td style={{textAlign:"right",fontWeight:700,color:"var(--gold)",fontSize:14}}>{fmt(cost)}</td></tr></tbody></table>
-          </div>}
+          <div style={{marginTop:12,borderTop:"1px solid var(--border)",paddingTop:10}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:4}}>
+              {r.ing.map(ing=>{const it=inventory.find(x=>x.id===ing.iid);return it?<div key={ing.iid} style={{fontSize:12,color:"var(--muted)",display:"flex",justifyContent:"space-between",background:"#F5F0E4",borderRadius:5,padding:"3px 8px"}}><span>{it.name} ({ing.qty}{it.unit})</span><span style={{color:"var(--text)",fontWeight:500}}>{fmt(it.cost*ing.qty)}</span></div>:null})}
+            </div>
+          </div>
         </Card>
       })}
+      {recipeModal&&<Modal title={recipeModal.name?"Edit Recipe":"New Recipe"} onClose={()=>setRecipeModal(null)}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <Inp label="Recipe Name *" value={recipeModal.name} onChange={v=>setRecipeModal(r=>({...r,name:v}))}/>
+          <Inp label="Size (e.g. 8 inch)" value={recipeModal.size} onChange={v=>setRecipeModal(r=>({...r,size:v}))}/>
+          <Sel label="Covering *" value={recipeModal.covering} onChange={v=>setRecipeModal(r=>({...r,covering:v}))} options={["buttercream","fondant","ganache","naked","plain"].map(c=>({value:c,label:c}))}/>
+          <Sel label="Tiers" value={String(recipeModal.tiers)} onChange={v=>setRecipeModal(r=>({...r,tiers:+v}))} options={["1","2","3","4"].map(n=>({value:n,label:`${n} tier${+n>1?"s":""}`}))}/>
+        </div>
+        <div style={{fontWeight:600,fontSize:13,marginBottom:8,marginTop:4}}>Ingredients</div>
+        {recipeModal.ing.map((ing,idx)=><div key={idx} style={{display:"flex",gap:8,marginBottom:6,alignItems:"center"}}>
+          <select value={ing.iid} onChange={e=>updateIng(idx,"iid",e.target.value)} style={{...iSt,flex:2,fontSize:12}}><option value="">— Select ingredient —</option>{inventory.map(i=><option key={i.id} value={i.id}>{i.name} ({i.unit})</option>)}</select>
+          <input type="number" placeholder="Qty" value={ing.qty} onChange={e=>updateIng(idx,"qty",e.target.value)} style={{...iSt,width:70,fontSize:12}}/>
+          <Btn small variant="danger" onClick={()=>removeIng(idx)}>×</Btn>
+        </div>)}
+        <Btn small variant="ghost" onClick={addIngToRecipe}>+ Add Ingredient</Btn>
+        <div style={{marginTop:12,display:"flex",gap:8}}><Btn variant="success" onClick={saveRecipe}>✓ Save Recipe</Btn><Btn variant="ghost" onClick={()=>setRecipeModal(null)}>Cancel</Btn></div>
+      </Modal>}
     </div>}
 
-    {tab==="flavours"&&<div>
-      <div style={{marginBottom:12,fontSize:13,color:"var(--muted)"}}>Extra ingredients added per layer for special flavours, on top of the base recipe.</div>
-      <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",background:"var(--panel)",borderRadius:10,overflow:"hidden",border:"1px solid var(--border)"}}>
-        <TH cols={["Flavour","Extra Ingredients per Layer","Cost/Layer"]}/>
-        <tbody>{Object.entries(FLAVOR_EXTRAS).map(([fl,extras],i)=>{
-          const cost=extras.reduce((s,e)=>{const it=inventory.find(x=>x.id===e.iid);return s+(it?it.cost*e.qty:0)},0)
-          return <TR2 key={fl} i={i} row={[
-            <span style={{fontWeight:500,textTransform:"capitalize"}}>{fl}</span>,
-            extras.length===0?<span style={{color:"var(--muted)"}}>Standard base</span>:extras.map(e=>{const it=inventory.find(x=>x.id===e.iid);return it?<span key={e.iid} style={{display:"inline-block",background:"var(--border)",borderRadius:4,padding:"2px 7px",fontSize:11.5,marginRight:4}}>{e.qty}{it.unit} {it.name}</span>:null}),
-            cost>0?<span style={{color:"var(--gold)",fontWeight:500}}>+{fmt(cost)}</span>:<span style={{color:"var(--muted)"}}>—</span>,
-          ]}/>
-        })}</tbody>
-      </table></div>
-    </div>}
-
-    {tab==="company"&&<div style={{maxWidth:520}}>
-      <Card>
-        <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:14}}>Company Profile</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-          <Inp label="Business Name" value={company.name} onChange={v=>{const u={...company,name:v};setCompany(u);saveCompanySettings(u)}}/>
-          <Inp label="Tagline" value={company.tagline||""} onChange={v=>{const u={...company,tagline:v};setCompany(u);saveCompanySettings(u)}}/>
-          <Inp label="Phone" value={company.phone||""} onChange={v=>{const u={...company,phone:v};setCompany(u);saveCompanySettings(u)}}/>
-          <Inp label="Email" value={company.email||""} onChange={v=>{const u={...company,email:v};setCompany(u);saveCompanySettings(u)}}/>
-        </div>
-        <Inp label="Address" value={company.address||""} onChange={v=>{const u={...company,address:v};setCompany(u);saveCompanySettings(u)}}/>
-
-        <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginTop:16,marginBottom:12}}>Logo & Colours</div>
-        <div style={{display:"flex",gap:14,alignItems:"flex-start",marginBottom:14}}>
-          <div onClick={()=>logoRef.current?.click()} style={{width:80,height:80,borderRadius:10,border:"2px dashed var(--border)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",background:"#FAF7F0",flexShrink:0,overflow:"hidden"}}>
-            {company.logo?<img src={company.logo} alt="logo" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{textAlign:"center",fontSize:11,color:"var(--muted)"}}>Upload<br/>Logo</div>}
-          </div>
-          <input ref={logoRef} type="file" accept="image/*" onChange={handleLogo} style={{display:"none"}}/>
-          <div style={{flex:1}}>
-            <div style={{marginBottom:10}}>
-              <label style={{fontSize:11,color:"var(--muted)",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>Primary Colour</label>
-              <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                <input type="color" value={company.primaryColor||"#C8912A"} onChange={e=>{const u={...company,primaryColor:e.target.value};setCompany(u);saveCompanySettings(u)}} style={{width:40,height:36,borderRadius:6,border:"1px solid var(--border)",cursor:"pointer",padding:2}}/>
-                <span style={{fontSize:12,color:"var(--muted)"}}>{company.primaryColor}</span>
-              </div>
-            </div>
-            <div>
-              <label style={{fontSize:11,color:"var(--muted)",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>Sidebar Colour</label>
-              <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                <input type="color" value={company.sidebarColor||"#140801"} onChange={e=>{const u={...company,sidebarColor:e.target.value};setCompany(u);saveCompanySettings(u)}} style={{width:40,height:36,borderRadius:6,border:"1px solid var(--border)",cursor:"pointer",padding:2}}/>
-                <span style={{fontSize:12,color:"var(--muted)"}}>{company.sidebarColor}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div style={{padding:"10px 14px",background:"#F5F0E4",borderRadius:8,fontSize:12.5,color:"var(--muted)"}}>Changes apply immediately across the app and appear on invoices and reports.</div>
-      </Card>
-    </div>}
-
-    {tab==="pricing"&&<div style={{maxWidth:460}}>
-      <Card>
-        <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:12}}>Accessory & Extra Cost Margin</div>
-        <p style={{fontSize:13,color:"var(--muted)",marginTop:0,lineHeight:1.7}}>Added to every cake's ingredient cost to cover boxes, boards, ribbons, printouts, and any accessories not in the recipe.</p>
-        <div style={{display:"flex",alignItems:"center",gap:14,margin:"14px 0"}}>
-          <input type="range" min={0} max={30} value={accessoryPct} onChange={e=>{setAccessoryPct(+e.target.value);saveSetting("accessoryPct",+e.target.value)}} style={{flex:1,accentColor:"var(--gold)"}}/>
-          <div style={{fontSize:22,fontWeight:700,color:"var(--gold)",minWidth:46}}>{accessoryPct}%</div>
-        </div>
-        <div style={{fontSize:13,color:"var(--muted)"}}>Multiplier: <strong>×{(1+accessoryPct/100).toFixed(2)}</strong></div>
-      </Card>
-      <Card style={{marginTop:14}}>
-        <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:12}}>Subscription Tier</div>
-        <div style={{display:"flex",gap:0,borderRadius:10,overflow:"hidden",border:"1px solid var(--border)",marginBottom:14}}>
-          {[{n:"Starter",p:"Free",f:"10 recipes · 20 items · No AI scans"},{n:"Baker",p:"₦4,000/mo",f:"30 recipes · AI scans · Full reports"},{n:"Pro",p:"₦8,000/mo",f:"Unlimited · Multi-staff · Invoicing"}].map((t,i)=>(
-            <div key={t.n} style={{flex:1,padding:"12px 10px",textAlign:"center",background:i===1?"var(--gold)":"var(--panel)",color:i===1?"#fff":"var(--text)",borderRight:i<2?"1px solid var(--border)":"none"}}>
-              <div style={{fontWeight:700,fontSize:13}}>{t.n}</div>
-              <div style={{fontSize:12,marginTop:2,opacity:0.85}}>{t.p}</div>
-              <div style={{fontSize:10.5,marginTop:4,opacity:0.7,lineHeight:1.4}}>{t.f}</div>
-            </div>
-          ))}
-        </div>
-        <div style={{fontSize:12,color:"var(--muted)"}}>Currently on <strong>Pro (Beta)</strong> — all features unlocked during testing phase.</div>
-      </Card>
+    {/* ── DECORATIONS ── */}
+    {tab==="decorations"&&<div>
+      <div style={{marginBottom:12,fontSize:13,color:"var(--muted)"}}>These decoration extras are selectable per production order. Costs update automatically when inventory prices change.</div>
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",background:"var(--panel)",borderRadius:10,overflow:"hidden",border:"1px solid var(--border)"}}>
+          <TH cols={["Decoration","Linked Inventory Item","Qty Used","Cost"]}/>
+          <tbody>{DECORATION_ITEMS.map((d,i)=>{
+            const it=inventory.find(x=>x.id===d.iid)
+            return <TR2 key={d.id} i={i} row={[
+              <span style={{fontWeight:500}}>{d.label}</span>,
+              <span style={{color:"var(--muted)",fontSize:12.5}}>{it?.name||"—"}</span>,
+              <span>{d.qty} {it?.unit}</span>,
+              <span style={{color:"var(--gold)",fontWeight:500}}>{it?fmt(it.cost*d.qty):"—"}</span>,
+            ]}/>
+          })}</tbody>
+        </table>
+      </div>
     </div>}
   </div>
 }
 
-// ══════════════════════════════════════════════════════════════
-//  PRODUCTION ENTRY
-// ══════════════════════════════════════════════════════════════
-function ProductionEntry({inventory,setInventory,accessoryPct,productions,setProductions,setView}){
+function RestockCell({id,unit,onRestock}){
+  const [qty,setQty]=useState("")
+  return <div style={{display:"flex",gap:4,alignItems:"center"}}>
+    <input type="number" placeholder="qty" value={qty} onChange={e=>setQty(e.target.value)} style={{...iSt,width:55,padding:"4px 6px",fontSize:12}}/>
+    <Btn small variant="outline" onClick={()=>{onRestock(id,qty);setQty("")}}>+</Btn>
+  </div>
+}
+
+// ═══════════════════════════════════════════════════════════
+//  NEW PRODUCTION (AI reads photo → fills details)
+// ═══════════════════════════════════════════════════════════
+function ProductionEntry({inventory,setInventory,recipes,productions,setProductions,settings,setView,user}){
   const [step,setStep]=useState(1)
   const [photo,setPhoto]=useState(null);const [photoB64,setPhotoB64]=useState(null)
-  const [aiObs,setAiObs]=useState(null);const [aiLoading,setAiLoading]=useState(false)
+  const [aiObs,setAiObs]=useState(null);const [aiLoading,setAiLoading]=useState(false);const [aiMsg,setAiMsg]=useState("")
   const [saving,setSaving]=useState(false)
   const fileRef=useRef()
+
+  // Order details
+  const [recipeId,setRecipeId]=useState("")
   const [size,setSize]=useState("");const [covering,setCovering]=useState("")
-  const [layers,setLayers]=useState("2");const [flavors,setFlavors]=useState("")
+  const [flavors,setFlavors]=useState("");const [decorIds,setDecorIds]=useState([])
   const [client,setClient]=useState("");const [clientPhone,setClientPhone]=useState("");const [clientEmail,setClientEmail]=useState("")
   const [orderDate,setOrderDate]=useState(today());const [delivDate,setDelivDate]=useState("")
   const [salePrice,setSalePrice]=useState("");const [deliveryCost,setDeliveryCost]=useState("0")
   const [paymentType,setPaymentType]=useState("full");const [discountPct,setDiscountPct]=useState("0")
   const [notes,setNotes]=useState("")
-  const SIZES=['6"','8"','10"','12"','2-tier','3-tier','cupcakes×12','cupcakes×24']
-  const COVERINGS=["buttercream","fondant","ganache","naked"]
-  const matchedRecipe=RECIPES.find(r=>r.size===size&&r.covering===covering)||RECIPES.find(r=>r.size===size)||null
-  const baseCost=matchedRecipe?calcCost(matchedRecipe,inventory,+layers,flavors,accessoryPct):0
-  const delivery=+deliveryCost||0
-  const totalCost=baseCost+delivery
-  const discount=paymentType==="discount"?(+salePrice*(+discountPct/100)):0
-  const effectiveSale=paymentType==="full"?(+salePrice):paymentType==="discount"?(+salePrice-discount):0
-  const profit=effectiveSale-totalCost
-  const fl=(flavors||"").toLowerCase().split(/[,+&]/).map(f=>f.trim()).filter(Boolean)
-  const extraLines=[]
-  if(matchedRecipe)fl.forEach(f=>(FLAVOR_EXTRAS[f]||[]).forEach(e=>{const it=inventory.find(x=>x.id===e.iid);if(it)extraLines.push({name:`${it.name} (${f} ×${layers}L)`,cost:it.cost*e.qty*(+layers)})}))
-  const ingSubtotal=matchedRecipe?recipeCost(matchedRecipe,inventory):0
-  const extraTotal=extraLines.reduce((s,l)=>s+l.cost,0)
+
+  const SIZES=['6"','8"','10"','12"','2-tier','3-tier','cupcakes×12','cupcakes×24','loaf']
+  const COVERINGS=["buttercream","fondant","ganache","naked","plain"]
+
+  const matchedRecipe = recipes.find(r=>r.id===recipeId) || recipes.find(r=>r.size===size&&r.covering===covering) || recipes.find(r=>r.size===size) || null
+
+  const baseCost = calcFullCost(matchedRecipe, inventory, flavors, decorIds, settings.accessoryPct)
+  const delivCost = +deliveryCost||0
+  const totalProdCost = baseCost + delivCost
+  const discount = paymentType==="discount"?(+salePrice*(+discountPct/100)):0
+  const effectiveSale = paymentType==="full"||paymentType==="deposit" ? +salePrice : paymentType==="discount" ? +salePrice-discount : 0
+  const suggestedPrice = baseCost * (1 + (settings.profitPct||40)/100) + delivCost
 
   const handleFile=e=>{const file=e.target.files[0];if(!file)return;setPhoto(URL.createObjectURL(file));const r=new FileReader();r.onload=ev=>setPhotoB64(ev.target.result.split(",")[1]);r.readAsDataURL(file)}
 
-  const readPhoto=async()=>{
-    if(!photoB64)return;setAiLoading(true)
+  const analyzePhoto = async () => {
+    if(!photoB64)return;setAiLoading(true);setAiMsg("")
     try{
-      const raw=await callClaude([{role:"user",content:[{type:"image",source:{type:"base64",media_type:"image/jpeg",data:photoB64}},{type:"text",text:`Analyze this cake for a Nigerian bakery. Return ONLY JSON:\n{"estimatedSize":"e.g. 8 inch","covering":"buttercream|fondant|ganache|naked","estimatedTiers":1,"colorDescription":"e.g. blue with gold","decorationDetails":"roses, drip","photoNotes":"one sentence"}`}]}],"Analyze cake photos for bookkeeping. Return JSON only.")
+      const compressed = await compressImage(photoB64)
+      const invList=inventory.map(i=>`${i.name}(${i.unit})`).join(",")
+      const decorList=DECORATION_ITEMS.map(d=>`${d.id}:${d.name}`).join(",")
+      const raw = await callClaude([{role:"user",content:[
+        {type:"image",source:{type:"base64",media_type:"image/jpeg",data:compressed}},
+        {type:"text",text:`You are analyzing a custom cake photo for a Nigerian bakery's bookkeeping system. 
+
+Analyze this cake image carefully and return ONLY valid JSON with this exact structure:
+{
+  "estimatedSize": "6 inch OR 8 inch OR 10 inch OR 12 inch OR 2-tier OR 3-tier OR cupcakes",
+  "covering": "buttercream OR fondant OR ganache OR naked",
+  "estimatedTiers": 1,
+  "colorDescription": "describe the colors used",
+  "flavorClues": "any visual clues about flavor (e.g. dark color = chocolate, red = red velvet)",
+  "decorationsUsed": ["list of decoration IDs from: ${decorList}"],
+  "accessoriesDescription": "describe all decorations, toppings, extras visible",
+  "photoNotes": "one sentence summary for the record"
+}`
+      }]}],"You analyze cake photos for bookkeeping. Return valid JSON only, no markdown.")
       const r=JSON.parse(raw.replace(/```json|```/g,"").trim())
       setAiObs(r)
+      // Auto-fill fields
       if(!covering&&r.covering&&COVERINGS.includes(r.covering))setCovering(r.covering)
-      if(!size&&r.estimatedSize){const s=r.estimatedSize.replace(/\s*inch/i,'"');if(SIZES.includes(s))setSize(s)}
-    }catch{}finally{setAiLoading(false)}
+      if(!size&&r.estimatedSize){
+        const s=r.estimatedSize.replace(/\s*(inch|in)\s*/i,'"').replace(/(\d+)"/,'$1"')
+        if(SIZES.includes(s))setSize(s); else if(SIZES.includes(r.estimatedSize))setSize(r.estimatedSize)
+      }
+      if(r.decorationsUsed?.length>0)setDecorIds(r.decorationsUsed.filter(id=>DECORATION_ITEMS.find(d=>d.id===id)))
+      if(r.flavorClues&&!flavors){
+        const fc=r.flavorClues.toLowerCase()
+        if(fc.includes("chocolate")||fc.includes("dark"))setFlavors("Chocolate")
+        else if(fc.includes("red velvet"))setFlavors("Red Velvet")
+        else if(fc.includes("carrot"))setFlavors("Carrot")
+        else setFlavors("Vanilla")
+      }
+      setAiMsg("✓ AI has pre-filled size, covering, decorations and flavour from the photo. Review and confirm below.")
+    }catch(err){setAiMsg("⚠ Could not read photo automatically. Fields have not been pre-filled — please fill in manually below. (Error: "+err.message+")")}
+    finally{setAiLoading(false)}
   }
 
-  const doSave=async()=>{
+  const toggleDecor = (id) => setDecorIds(prev => prev.includes(id) ? prev.filter(d=>d!==id) : [...prev,id])
+
+  const doSave = async () => {
     setSaving(true)
-    const prod={id:uid(),recipeId:matchedRecipe?.id,client,clientPhone,clientEmail,orderDate,deliveryDate:delivDate,cost:Math.round(baseCost),deliveryCost:delivery,salePrice:Math.round(effectiveSale),status:"pending",size,covering,flavors,layers:+layers,accessoryPct,paymentType,discountPct:+discountPct,notes,photo:null}
+    const prod={id:uid(),recipeId:matchedRecipe?.id,client,clientPhone,clientEmail,orderDate,deliveryDate:delivDate,cost:Math.round(totalProdCost),deliveryCost:delivCost,salePrice:Math.round(effectiveSale),status:"pending",size,covering,flavors,decorations:decorIds.join(","),layers:1,accessoryPct:settings.accessoryPct,profitPct:settings.profitPct,paymentType,discountPct:+discountPct,notes}
+    // Deduct inventory
     if(matchedRecipe){
-      const deductions=[...matchedRecipe.ing.map(i=>({...i}))]
-      fl.forEach(f=>(FLAVOR_EXTRAS[f]||[]).forEach(e=>{const ex=deductions.find(d=>d.iid===e.iid);if(ex)ex.qty=parseFloat((ex.qty+e.qty*(+layers)).toFixed(3));else deductions.push({iid:e.iid,qty:e.qty*(+layers)})}))
+      const deductions=[...matchedRecipe.ing.map(i=>({...i,qty:+i.qty}))]
+      const fl=(flavors||"").toLowerCase().split(/[,+&]/).map(f=>f.trim()).filter(Boolean)
+      fl.forEach(f=>(FLAVOR_EXTRAS[f]||[]).forEach(e=>{const ex=deductions.find(d=>d.iid===e.iid);if(ex)ex.qty=parseFloat((ex.qty+e.qty).toFixed(3));else deductions.push({iid:e.iid,qty:e.qty})}))
+      decorIds.forEach(did=>{const decor=DECORATION_ITEMS.find(d=>d.id===did);if(decor){const ex=deductions.find(d=>d.iid===decor.iid);if(ex)ex.qty=parseFloat((ex.qty+decor.qty).toFixed(3));else deductions.push({iid:decor.iid,qty:decor.qty})}})
       const updInv=inventory.map(item=>{const ing=deductions.find(i=>i.iid===item.id);return ing?{...item,stock:Math.max(0,parseFloat((item.stock-ing.qty).toFixed(3)))}:item})
       setInventory(updInv);await saveInventory(updInv)
     }
-    setProductions(prev=>[prod,...prev]);await saveProduction(prod)
-    setSaving(false);setView("records")
+    setProductions(prev=>[prod,...prev]);await saveProduction(prod);setSaving(false)
+    // Reset
+    setStep(1);setPhoto(null);setPhotoB64(null);setAiObs(null);setAiMsg("");setRecipeId("");setSize("");setCovering("");setFlavors("");setDecorIds([]);setClient("");setClientPhone("");setClientEmail("");setOrderDate(today());setDelivDate("");setSalePrice("");setDeliveryCost("0");setPaymentType("full");setDiscountPct("0");setNotes("")
+    setView("records")
   }
 
   return <div>
-    <SHead title="New Production Entry" sub="Photo + details → automatic cost breakdown and inventory deduction."/>
-    <Steps steps={["Cake Details","Cost Review","Confirm"]} cur={step}/>
+    <SHead title="New Production Entry" sub="Upload cake photo → AI reads it → fills in details automatically."/>
+    <Steps steps={["Cake Details","Cost Breakdown","Confirm"]} cur={step}/>
 
     {step===1&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
       <Card>
-        <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:12}}>📸 Cake Photo <span style={{fontSize:11,fontWeight:400,color:"var(--muted)"}}>(optional)</span></div>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:12}}>📸 Cake Photo <span style={{fontSize:11,color:"var(--muted)"}}>(recommended)</span></div>
         <div onClick={()=>fileRef.current?.click()} style={{border:"2px dashed var(--border)",borderRadius:10,padding:photo?4:36,textAlign:"center",cursor:"pointer",background:"#FAF7F0",marginBottom:10,minHeight:120,display:"flex",alignItems:"center",justifyContent:"center"}}>
           {photo?<img src={photo} alt="cake" style={{maxHeight:180,maxWidth:"100%",borderRadius:8}}/>:<div><div style={{fontSize:36,marginBottom:6}}>🎂</div><div style={{fontSize:13,color:"var(--muted)"}}>Tap to upload cake photo</div></div>}
         </div>
         <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{display:"none"}}/>
-        {photo&&!aiObs&&<Btn full onClick={readPhoto} disabled={aiLoading}>{aiLoading?"🔍 Reading…":"✦ Let AI read this photo"}</Btn>}
-        {aiObs&&<div style={{background:"#FFF9EE",borderRadius:8,padding:10,border:"1px solid var(--gold)",fontSize:12.5,marginTop:8}}>
-          <div style={{fontWeight:600,marginBottom:6}}>✦ AI observed:</div>
-          {[["Size",aiObs.estimatedSize],["Covering",aiObs.covering],["Colour",aiObs.colorDescription],["Decor",aiObs.decorationDetails]].map(([k,v])=>v?<div key={k} style={{display:"flex",justifyContent:"space-between",marginBottom:2}}><span style={{color:"var(--muted)"}}>{k}</span><span style={{fontWeight:500,textTransform:"capitalize"}}>{v}</span></div>:null)}
-          <div style={{fontSize:11,color:"var(--muted)",marginTop:5,fontStyle:"italic"}}>"{aiObs.photoNotes}"</div>
+        {photo&&!aiObs&&!aiLoading&&<Btn full onClick={analyzePhoto}>✦ Let AI Read This Photo</Btn>}
+        {aiLoading&&<div style={{textAlign:"center",padding:"10px",color:"var(--muted)",fontSize:13}}>🔍 AI is reading the photo...</div>}
+        {aiMsg&&<div style={{marginTop:8,padding:"8px 12px",background:aiMsg.startsWith("✓")?"#EEF8F3":"#FDEBE9",borderRadius:8,fontSize:12.5,color:aiMsg.startsWith("✓")?"#357A52":"#B03A2E",lineHeight:1.5}}>{aiMsg}</div>}
+        {aiObs&&<div style={{marginTop:8,background:"#FFF9EE",borderRadius:8,padding:10,border:"1px solid var(--gold)",fontSize:12.5}}>
+          <div style={{fontWeight:600,marginBottom:6,color:"var(--text)"}}>✦ AI observed from photo:</div>
+          {[["Size",aiObs.estimatedSize],["Covering",aiObs.covering],["Colour",aiObs.colorDescription],["Flavour clues",aiObs.flavorClues],["Decorations",aiObs.accessoriesDescription]].filter(([,v])=>v).map(([k,v])=><div key={k} style={{marginBottom:3,display:"flex",gap:6}}><span style={{color:"var(--muted)",minWidth:80}}>{k}:</span><span style={{color:"var(--text)"}}>{v}</span></div>)}
         </div>}
       </Card>
 
@@ -430,69 +636,77 @@ function ProductionEntry({inventory,setInventory,accessoryPct,productions,setPro
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           <Sel label="Cake Size *" value={size} onChange={setSize} options={SIZES.map(s=>({value:s,label:s}))}/>
           <Sel label="Covering *" value={covering} onChange={setCovering} options={COVERINGS.map(c=>({value:c,label:c.charAt(0).toUpperCase()+c.slice(1)}))}/>
-          <Sel label="Layers *" value={layers} onChange={setLayers} options={["1","2","3","4","5","6"].map(n=>({value:n,label:`${n} layer${+n>1?"s":""}`}))}/>
-          <Inp label="Flavour(s) *" value={flavors} onChange={setFlavors} placeholder="Vanilla, Chocolate…"/>
+        </div>
+        <Inp label="Flavour(s) *" value={flavors} onChange={setFlavors} placeholder="e.g. Vanilla, Chocolate, Red Velvet"/>
+        <Sel label="Use Recipe" value={recipeId} onChange={setRecipeId} options={recipes.map(r=>({value:r.id,label:`${r.name} (${fmt(recipeCost(r,inventory))})`}))} placeholder="Auto-match from size & covering"/>
+        <div style={{marginBottom:12}}>
+          <label style={{fontSize:10.5,color:"var(--muted)",display:"block",marginBottom:6,textTransform:"uppercase",letterSpacing:0.8,fontWeight:500}}>Decoration Extras (select all that apply)</label>
+          <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+            {DECORATION_ITEMS.map(d=>{
+              const it=inventory.find(x=>x.id===d.iid)
+              const sel=decorIds.includes(d.id)
+              return <div key={d.id} onClick={()=>toggleDecor(d.id)} style={{padding:"4px 10px",borderRadius:20,border:`1px solid ${sel?"var(--gold)":"var(--border)"}`,background:sel?"#FFF9EE":"transparent",cursor:"pointer",fontSize:12,color:sel?"var(--gold)":"var(--muted)"}}>
+                {d.name} {it?`(${fmt(it.cost*d.qty)})`:""}</div>
+            })}
+          </div>
         </div>
         <Inp label="Client Name *" value={client} onChange={setClient} placeholder="Mrs. Chioma Okafor"/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          <Inp label="Client Phone" value={clientPhone} onChange={setClientPhone} placeholder="+234…"/>
-          <Inp label="Client Email" value={clientEmail} onChange={setClientEmail} placeholder="email@…"/>
+          <Inp label="Phone" value={clientPhone} onChange={setClientPhone} placeholder="+234…"/>
+          <Inp label="Email" value={clientEmail} onChange={setClientEmail} placeholder="optional"/>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           <Inp label="Order Date" type="date" value={orderDate} onChange={setOrderDate}/>
           <Inp label="Delivery Date *" type="date" value={delivDate} onChange={setDelivDate}/>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          <Inp label="Sale Price (₦)" type="number" value={salePrice} onChange={setSalePrice} placeholder="0"/>
+          <Inp label="Sale Price (₦)" type="number" value={salePrice} onChange={setSalePrice} placeholder={suggestedPrice>0?`Suggested: ${fmt(suggestedPrice)}`:"0"}/>
           <Inp label="Delivery Cost (₦)" type="number" value={deliveryCost} onChange={setDeliveryCost} placeholder="0"/>
         </div>
-        <Sel label="Payment Type *" value={paymentType} onChange={setPaymentType} options={PAYMENT_TYPES.map(p=>({value:p.v,label:p.l}))}/>
-        {paymentType==="discount"&&<Inp label="Discount %" type="number" value={discountPct} onChange={setDiscountPct} placeholder="e.g. 20"/>}
-        <Inp label="Notes" value={notes} onChange={setNotes} placeholder="Colour, theme, special requests…"/>
-        {matchedRecipe&&<div style={{padding:"8px 12px",background:"#F5F0E4",borderRadius:8,fontSize:12.5,marginBottom:12}}>Matched: <strong>{matchedRecipe.name}</strong> + {accessoryPct}% margin</div>}
-        <Btn full onClick={()=>setStep(2)} disabled={!size||!covering||!flavors||!client||!delivDate}>Review Cost Breakdown →</Btn>
+        <Sel label="Payment Type" value={paymentType} onChange={setPaymentType} options={PAYMENT_TYPES.map(p=>({value:p.v,label:p.l}))}/>
+        {paymentType==="discount"&&<Inp label="Discount %" type="number" value={discountPct} onChange={setDiscountPct}/>}
+        <Inp label="Notes" value={notes} onChange={setNotes} placeholder="Colour theme, special requests…"/>
+        {matchedRecipe&&<div style={{padding:"7px 12px",background:"#F5F0E4",borderRadius:8,fontSize:12.5,marginBottom:10}}>Matched: <strong>{matchedRecipe.name}</strong></div>}
+        {suggestedPrice>0&&!salePrice&&<div style={{padding:"7px 12px",background:"#E8EFFC",borderRadius:8,fontSize:12.5,marginBottom:10,color:"#2355A0"}}>💡 Suggested price (with {settings.profitPct||40}% profit): <strong>{fmt(suggestedPrice)}</strong></div>}
+        <Btn full onClick={()=>setStep(2)} disabled={!size||!covering||!client||!delivDate}>Review Cost Breakdown →</Btn>
       </Card>
     </div>}
 
     {step===2&&matchedRecipe&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
       <Card>
         <div style={{fontFamily:"'Playfair Display',serif",fontSize:16,fontWeight:600,marginBottom:16}}>Cost Breakdown</div>
-        <div style={{fontSize:10.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Base Ingredients</div>
-        {matchedRecipe.ing.map(ing=>{const it=inventory.find(x=>x.id===ing.iid);return it?<div key={ing.iid} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:13}}><span>{it.name} <span style={{color:"var(--muted)"}}>({ing.qty}{it.unit})</span></span><span>{fmt(it.cost*ing.qty)}</span></div>:null})}
-        {extraLines.length>0&&<>
-          <div style={{fontSize:10.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,margin:"10px 0 6px"}}>Flavour Extras</div>
-          {extraLines.map((l,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:13}}><span>{l.name}</span><span>+{fmt(l.cost)}</span></div>)}
-        </>}
-        <div style={{borderTop:"1px solid var(--border)",marginTop:6,paddingTop:6}}>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,color:"var(--muted)",padding:"3px 0"}}><span>Ingredient subtotal</span><span>{fmt(ingSubtotal+extraTotal)}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,color:"var(--muted)",padding:"3px 0"}}><span>Accessory margin ({accessoryPct}%)</span><span>+{fmt(baseCost-(ingSubtotal+extraTotal))}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,color:"var(--muted)",padding:"3px 0"}}><span>Delivery cost</span><span>+{fmt(delivery)}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",fontWeight:700,fontSize:14,padding:"8px 0",borderTop:"1px solid var(--border)",marginTop:4}}><span>Total Production Cost</span><span style={{color:"var(--gold)"}}>{fmt(totalCost)}</span></div>
+        <div style={{fontSize:10.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Base Ingredients ({matchedRecipe.name})</div>
+        {matchedRecipe.ing.map(ing=>{const it=inventory.find(x=>x.id===ing.iid);return it?<div key={ing.iid} style={{display:"flex",justifyContent:"space-between",padding:"3px 0",fontSize:12.5}}><span>{it.name} ({ing.qty}{it.unit})</span><span>{fmt(it.cost*ing.qty)}</span></div>:null})}
+        {decorIds.length>0&&<><div style={{fontSize:10.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,margin:"10px 0 5px"}}>Decorations</div>
+          {decorIds.map(did=>{const d=DECORATION_ITEMS.find(x=>x.id===did);const it=inventory.find(x=>x.id===d?.iid);return d&&it?<div key={did} style={{display:"flex",justifyContent:"space-between",padding:"3px 0",fontSize:12.5}}><span>{d.name} ({d.qty}{it.unit})</span><span>+{fmt(it.cost*d.qty)}</span></div>:null})}</>}
+        {flavors&&<><div style={{fontSize:10.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,margin:"10px 0 5px"}}>Flavour Extras</div>
+          {(flavors||"").toLowerCase().split(/[,+&]/).map(f=>f.trim()).filter(Boolean).map(f=>(FLAVOR_EXTRAS[f]||[]).map(e=>{const it=inventory.find(x=>x.id===e.iid);return it?<div key={f+e.iid} style={{display:"flex",justifyContent:"space-between",padding:"3px 0",fontSize:12.5}}><span>{f} — {it.name}</span><span>+{fmt(it.cost*e.qty)}</span></div>:null}))}</>}
+        <div style={{borderTop:"1px solid var(--border)",marginTop:8,paddingTop:8}}>
+          {[["Ingredient cost",fmt(recipeCost(matchedRecipe,inventory))],["Accessory margin ("+settings.accessoryPct+"%)",fmt(baseCost-recipeCost(matchedRecipe,inventory))],["Delivery",fmt(delivCost)]].map(([k,v])=><div key={k} style={{display:"flex",justifyContent:"space-between",fontSize:12.5,color:"var(--muted)",padding:"2px 0"}}><span>{k}</span><span>{v}</span></div>)}
+          <div style={{display:"flex",justifyContent:"space-between",fontWeight:700,fontSize:14,padding:"8px 0",borderTop:"1px solid var(--border)",marginTop:4}}><span>Total Production Cost</span><span style={{color:"var(--gold)"}}>{fmt(totalProdCost)}</span></div>
         </div>
-        {(paymentType==="full"||paymentType==="discount")&&salePrice&&<div style={{background:"#EEF8F3",borderRadius:8,padding:12,border:"1px solid #C2E0CF",marginTop:8}}>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:4}}><span style={{color:"var(--muted)"}}>Listed Price</span><span style={{fontWeight:500}}>{fmt(+salePrice)}</span></div>
-          {paymentType==="discount"&&<div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:4}}><span style={{color:"var(--muted)"}}>Discount ({discountPct}%)</span><span style={{color:"#B03A2E"}}>–{fmt(discount)}</span></div>}
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:4}}><span style={{color:"var(--muted)"}}>Effective Sale</span><span style={{fontWeight:600}}>{fmt(effectiveSale)}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",fontWeight:700,fontSize:14,paddingTop:8,borderTop:"1px solid #C2E0CF"}}><span>Gross Profit</span><span style={{color:"#357A52"}}>{fmt(profit)}</span></div>
-          <div style={{fontSize:11,color:"var(--muted)",marginTop:3}}>Margin: {effectiveSale>0?Math.round((profit/effectiveSale)*100):0}%</div>
+        {effectiveSale>0&&<div style={{background:"#EEF8F3",borderRadius:8,padding:12,border:"1px solid #C2E0CF",marginTop:8}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:4}}><span style={{color:"var(--muted)"}}>Sale Price</span><span style={{fontWeight:600}}>{fmt(effectiveSale)}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",fontWeight:700,fontSize:14,paddingTop:8,borderTop:"1px solid #C2E0CF"}}><span>Gross Profit</span><span style={{color:"#357A52"}}>{fmt(effectiveSale-totalProdCost)}</span></div>
+          <div style={{fontSize:11,color:"var(--muted)",marginTop:3}}>Margin: {effectiveSale>0?Math.round(((effectiveSale-totalProdCost)/effectiveSale)*100):0}%</div>
         </div>}
-        {(paymentType==="gift"||paymentType==="sample")&&<div style={{background:"#F0EAFC",borderRadius:8,padding:12,marginTop:8,fontSize:13,color:"#6B32A0"}}>This production is recorded as a <strong>{paymentType}</strong> — no revenue logged but all costs are tracked.</div>}
+        {(paymentType==="gift"||paymentType==="sample")&&<div style={{background:"#F0EAFC",borderRadius:8,padding:10,marginTop:8,fontSize:12.5,color:"#6B32A0"}}>This is a <strong>{paymentType}</strong> — no revenue logged but all costs are tracked.</div>}
       </Card>
       <Card>
         <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:12}}>Order Summary</div>
-        {[[`Size & Covering`,`${size} · ${covering}`],["Layers",`${layers} layer${+layers>1?"s":""}`],["Flavours",flavors],["Client",client],[" Phone",clientPhone||"—"],["Email",clientEmail||"—"],["Order Date",orderDate],["Delivery Date",delivDate],["Payment",PAYMENT_TYPES.find(p=>p.v===paymentType)?.l||paymentType],["Notes",notes||"—"]].map(([k,v])=><div key={k} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid var(--border)",fontSize:12.5}}><span style={{color:"var(--muted)"}}>{k}</span><span style={{fontWeight:500}}>{v}</span></div>)}
-        {photo&&<img src={photo} alt="" style={{width:"100%",borderRadius:8,marginTop:12}}/>}
-        <div style={{marginTop:12,fontSize:12,color:"var(--muted)",background:"#FFF9EE",borderRadius:6,padding:"8px 10px"}}>⚠ Saving deducts {matchedRecipe.ing.length} ingredient(s) from inventory.</div>
+        {[[`Size`,size],[`Covering`,covering],["Flavours",flavors],["Decorations",decorIds.map(id=>DECORATION_ITEMS.find(d=>d.id===id)?.name).filter(Boolean).join(", ")||"None"],["Client",client],["Phone",clientPhone||"—"],["Order Date",orderDate],["Delivery Date",delivDate],["Payment",PAYMENT_TYPES.find(p=>p.v===paymentType)?.l||paymentType],["Notes",notes||"—"]].map(([k,v])=><div key={k} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid var(--border)",fontSize:12.5}}><span style={{color:"var(--muted)"}}>{k}</span><span style={{fontWeight:500,textAlign:"right",maxWidth:"55%"}}>{v}</span></div>)}
+        {photo&&<img src={photo} alt="" style={{width:"100%",borderRadius:8,marginTop:10}}/>}
+        <div style={{marginTop:10,fontSize:12,color:"var(--muted)",background:"#FFF9EE",borderRadius:6,padding:"7px 10px"}}>⚠ Saving deducts {matchedRecipe.ing.length + decorIds.length} ingredient(s) from inventory.</div>
         <div style={{marginTop:12,display:"flex",gap:8}}><Btn onClick={()=>setStep(3)}>Confirm →</Btn><Btn variant="ghost" onClick={()=>setStep(1)}>← Edit</Btn></div>
       </Card>
     </div>}
 
-    {step===3&&<div style={{maxWidth:480}}>
+    {step===3&&<div style={{maxWidth:460}}>
       <Card style={{borderColor:"#357A52",background:"#F2FAF6"}}>
         <div style={{fontFamily:"'Playfair Display',serif",fontSize:17,fontWeight:600,marginBottom:6}}>✓ Ready to Save</div>
-        <p style={{fontSize:13,color:"var(--muted)",marginTop:0}}>Creates a production record, logs all costs, and deducts ingredients automatically.</p>
+        <p style={{fontSize:13,color:"var(--muted)",marginTop:0}}>This will create a production record and deduct all ingredients from inventory.</p>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,padding:"12px 0",borderTop:"1px solid var(--border)"}}>
-          {[["Prod. Cost",fmt(totalCost)],["Sale Price",fmt(effectiveSale)],["Gross Profit",fmt(profit)]].map(([k,v])=><div key={k} style={{background:"var(--panel)",borderRadius:8,padding:"10px 12px"}}><div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:0.8}}>{k}</div><div style={{fontFamily:"'Playfair Display',serif",fontSize:16,fontWeight:700,color:"var(--gold)",marginTop:3}}>{v}</div></div>)}
+          {[["Prod. Cost",fmt(totalProdCost)],["Sale Price",fmt(effectiveSale)],["Gross Profit",fmt(effectiveSale-totalProdCost)]].map(([k,v])=><div key={k} style={{background:"var(--panel)",borderRadius:8,padding:"10px 12px"}}><div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:0.8}}>{k}</div><div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:700,color:"var(--gold)",marginTop:3}}>{v}</div></div>)}
         </div>
         <div style={{display:"flex",gap:8,marginTop:4}}>{saving?<Spinner/>:<><Btn variant="success" onClick={doSave}>✓ Save Production Record</Btn><Btn variant="ghost" onClick={()=>setStep(2)}>← Back</Btn></>}</div>
       </Card>
@@ -500,27 +714,46 @@ function ProductionEntry({inventory,setInventory,accessoryPct,productions,setPro
   </div>
 }
 
-// ══════════════════════════════════════════════════════════════
-//  RECEIPT SCANNER
-// ══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+//  RECEIPT SCANNER (fixed)
+// ═══════════════════════════════════════════════════════════
 function ReceiptScanner({inventory,setInventory,expenses,setExpenses}){
   const [photo,setPhoto]=useState(null);const [photoB64,setPhotoB64]=useState(null)
-  const [loading,setLoading]=useState(false);const [error,setError]=useState(null)
-  const [parsed,setParsed]=useState(null);const [saved,setSaved]=useState(false)
-  const [totalAmount,setTotalAmount]=useState("")
+  const [loading,setLoading]=useState(false);const [error,setError]=useState("");const [saved,setSaved]=useState(false)
+  const [parsed,setParsed]=useState(null);const [totalAmount,setTotalAmount]=useState("")
   const fileRef=useRef()
 
-  const handleFile=e=>{const file=e.target.files[0];if(!file)return;setPhoto(URL.createObjectURL(file));const r=new FileReader();r.onload=ev=>setPhotoB64(ev.target.result.split(",")[1]);r.readAsDataURL(file);setParsed(null);setSaved(false);setError(null)}
+  const handleFile=e=>{const file=e.target.files[0];if(!file)return;setPhoto(URL.createObjectURL(file));const r=new FileReader();r.onload=ev=>setPhotoB64(ev.target.result.split(",")[1]);r.readAsDataURL(file);setParsed(null);setSaved(false);setError("")}
 
   const scan=async()=>{
-    if(!photoB64)return;setLoading(true);setError(null)
+    if(!photoB64)return;setLoading(true);setError("")
     try{
+      const compressed = await compressImage(photoB64, 1200)
       const invList=inventory.map(i=>`${i.id}:${i.name}(${i.unit})`).join(", ")
-      const raw=await callClaude([{role:"user",content:[{type:"image",source:{type:"base64",media_type:"image/jpeg",data:photoB64}},{type:"text",text:`Nigerian bakery receipt. Extract all items and total amount. Match items to inventory: ${invList}. Return ONLY JSON:\n{"items":[{"item_on_receipt":"text","qty":0.5,"unit":"kg","matched_id":"i1 or null","matched_name":"name or null","unit_price":0,"line_total":0,"confidence":"high|medium|low"}],"receipt_total":0,"receipt_date":"YYYY-MM-DD or null","supplier":"store name or null"}`}]}],"Parse Nigerian bakery receipts. Return JSON only.")
+      const raw=await callClaude([{role:"user",content:[
+        {type:"image",source:{type:"base64",media_type:"image/jpeg",data:compressed}},
+        {type:"text",text:`This is a Nigerian bakery purchase receipt — it may be handwritten or printed. Please carefully read every item visible.
+
+Extract all purchased items. Then match each item to the closest item in this inventory list:
+${invList}
+
+Return ONLY this exact JSON format, no other text:
+{
+  "items": [
+    {"item_on_receipt": "exact text as written", "qty": 50, "unit": "kg", "unit_price": 1140, "line_total": 57000, "matched_id": "i1", "matched_name": "Flour", "confidence": "high"}
+  ],
+  "receipt_total": 57000,
+  "receipt_date": "2026-04-01",
+  "supplier": "market/store name if visible"
+}
+
+For handwritten receipts, do your best to interpret the writing. If a field is unclear, make your best guess. confidence should be "high", "medium", or "low".`}
+      ]}],"You parse Nigerian bakery purchase receipts, including handwritten ones. Return valid JSON only.")
       const result=JSON.parse(raw.replace(/```json|```/g,"").trim())
+      if(!result.items||result.items.length===0)throw new Error("No items found in receipt image. Try a brighter, clearer photo.")
       setParsed({...result,items:result.items.map(r=>({...r,approved:r.confidence!=="low",overrideId:r.matched_id}))})
       if(result.receipt_total)setTotalAmount(String(result.receipt_total))
-    }catch{setError("Could not read receipt. Try a clearer photo in good lighting.")}
+    }catch(err){setError(`Could not read receipt: ${err.message}`)}
     finally{setLoading(false)}
   }
 
@@ -529,62 +762,64 @@ function ReceiptScanner({inventory,setInventory,expenses,setExpenses}){
 
   const applyUpdates=async()=>{
     const approved=parsed.items.filter(r=>r.approved&&r.overrideId)
-    const updInv=inventory.map(item=>{const match=approved.find(r=>r.overrideId===item.id);return match?{...item,stock:parseFloat((item.stock+match.qty).toFixed(3))}:item})
+    const updInv=inventory.map(item=>{const match=approved.find(r=>r.overrideId===item.id);return match?{...item,stock:parseFloat((item.stock+(+match.qty||0)).toFixed(3))}:item})
     setInventory(updInv);await saveInventory(updInv)
-    // Add to expenses
-    const exp={id:uid(),date:parsed.receipt_date||today(),description:`Purchase: ${parsed.supplier||"Supplier"}`,amount:+totalAmount||parsed.items.reduce((s,r)=>s+(r.line_total||0),0),category:"Ingredients",paymentMethod:"cash",source:"receipt",items:parsed.items.filter(r=>r.approved).map(r=>r.item_on_receipt)}
+    const amt=+totalAmount||parsed.items.reduce((s,r)=>s+(r.line_total||0),0)
+    const exp={id:uid(),date:parsed.receipt_date||today(),description:`Purchase: ${parsed.supplier||"Supplier"}`,amount:amt,category:"Ingredients",paymentMethod:"cash",source:"receipt",notes:`${approved.length} items: ${approved.map(r=>r.matched_name||r.item_on_receipt).join(", ")}`}
     const updExp=[exp,...expenses];setExpenses(updExp);saveExpenses(updExp)
     setParsed(null);setPhoto(null);setPhotoB64(null);setSaved(true)
   }
 
   return <div>
-    <SHead title="Receipt Scanner" sub="Photo → AI reads it → inventory updated + expense logged automatically."/>
+    <SHead title="Receipt Scanner" sub="Photo → AI reads items → updates inventory + logs expense."/>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
       <Card>
-        <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:12}}>📷 Upload Receipt</div>
-        <div onClick={()=>fileRef.current?.click()} style={{border:"2px dashed var(--border)",borderRadius:10,padding:photo?4:44,textAlign:"center",cursor:"pointer",background:"#FAF7F0",marginBottom:12,minHeight:140,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          {photo?<img src={photo} alt="receipt" style={{maxHeight:260,maxWidth:"100%",borderRadius:8}}/>:<div><div style={{fontSize:38,marginBottom:6}}>🧾</div><div style={{fontSize:13,color:"var(--muted)"}}>Tap to upload receipt</div><div style={{fontSize:11.5,color:"#C8B89A",marginTop:3}}>Printed or handwritten</div></div>}
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:12}}>📷 Upload Receipt Photo</div>
+        <div onClick={()=>fileRef.current?.click()} style={{border:"2px dashed var(--border)",borderRadius:10,padding:photo?4:44,textAlign:"center",cursor:"pointer",background:"#FAF7F0",marginBottom:12,minHeight:130,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          {photo?<img src={photo} alt="receipt" style={{maxHeight:260,maxWidth:"100%",borderRadius:8}}/>:<div><div style={{fontSize:36,marginBottom:6}}>🧾</div><div style={{fontSize:13,color:"var(--muted)"}}>Tap to upload receipt photo</div><div style={{fontSize:11.5,color:"#C8B89A",marginTop:3}}>Printed or handwritten receipts</div></div>}
         </div>
         <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{display:"none"}}/>
-        {photo&&!parsed&&!saved&&<><Btn full onClick={scan} disabled={loading}>{loading?"🔍 Reading receipt…":"✦ Scan & Extract Items"}</Btn>{error&&<div style={{fontSize:12,color:"#B03A2E",marginTop:8}}>⚠ {error}</div>}</>}
-        {saved&&<div style={{background:"#EEF8F3",borderRadius:8,padding:12,border:"1px solid #C2E0CF",marginTop:8}}>
-          <div style={{fontWeight:600,color:"#357A52",marginBottom:4}}>✓ Done! Inventory updated & expense logged.</div>
+        {photo&&!parsed&&!saved&&<><Btn full onClick={scan} disabled={loading}>{loading?"🔍 AI is reading the receipt…":"✦ Scan & Extract Items"}</Btn>
+          {loading&&<div style={{fontSize:12,color:"var(--muted)",textAlign:"center",marginTop:8}}>This may take 15-30 seconds…</div>}
+          {error&&<div style={{marginTop:10,padding:"8px 12px",background:"#FDEBE9",borderRadius:8,fontSize:12.5,color:"#B03A2E",lineHeight:1.5}}>⚠ {error}<br/>Try: better lighting, hold camera steady, make sure writing is visible.</div>}
+        </>}
+        {saved&&<div style={{background:"#EEF8F3",borderRadius:8,padding:12,border:"1px solid #C2E0CF"}}>
+          <div style={{fontWeight:600,color:"#357A52",marginBottom:4}}>✓ Inventory updated & expense logged!</div>
           <Btn small variant="outline" onClick={()=>{setSaved(false);setPhoto(null);setPhotoB64(null)}}>Scan Another</Btn>
         </div>}
       </Card>
       <div>
         {parsed?<Card>
           <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:6}}>Items Detected</div>
-          {parsed.supplier&&<div style={{fontSize:12.5,color:"var(--muted)",marginBottom:4}}>Supplier: <strong>{parsed.supplier}</strong></div>}
-          {parsed.receipt_date&&<div style={{fontSize:12.5,color:"var(--muted)",marginBottom:8}}>Date: <strong>{parsed.receipt_date}</strong></div>}
-          {parsed.items.map((r,idx)=><div key={idx} style={{padding:"10px 0",borderBottom:"1px solid var(--border)"}}>
+          {parsed.supplier&&<div style={{fontSize:12,color:"var(--muted)",marginBottom:3}}>Supplier: <strong>{parsed.supplier}</strong></div>}
+          {parsed.receipt_date&&<div style={{fontSize:12,color:"var(--muted)",marginBottom:8}}>Date: <strong>{parsed.receipt_date}</strong></div>}
+          {parsed.items.map((r,idx)=><div key={idx} style={{padding:"9px 0",borderBottom:"1px solid var(--border)"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <div><div style={{fontSize:13,fontWeight:500}}>{r.item_on_receipt}</div><div style={{fontSize:11.5,color:"var(--muted)"}}>{r.qty} {r.unit} · {fmt(r.line_total||0)}</div></div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
                 <Badge color={r.confidence==="high"?"green":r.confidence==="medium"?"gold":"red"}>{r.confidence}</Badge>
-                <div onClick={()=>toggleApprove(idx)} style={{width:34,height:18,borderRadius:9,background:r.approved?"#357A52":"var(--border)",cursor:"pointer",position:"relative",transition:"background 0.2s",flexShrink:0}}><div style={{width:14,height:14,borderRadius:"50%",background:"white",position:"absolute",top:2,left:r.approved?18:2,transition:"left 0.2s"}}/></div>
+                <div onClick={()=>toggleApprove(idx)} style={{width:32,height:18,borderRadius:9,background:r.approved?"#357A52":"var(--border)",cursor:"pointer",position:"relative",transition:"background 0.2s",flexShrink:0}}><div style={{width:14,height:14,borderRadius:"50%",background:"white",position:"absolute",top:2,left:r.approved?16:2,transition:"left 0.2s"}}/></div>
               </div>
             </div>
-            {r.approved&&<div style={{marginTop:6}}><select value={r.overrideId||""} onChange={e=>setMatch(idx,e.target.value)} style={{...iSt,fontSize:12,padding:"5px 8px"}}><option value="">— Skip —</option>{inventory.map(i=><option key={i.id} value={i.id}>{i.name} ({i.unit}) · {i.stock} in stock</option>)}</select></div>}
+            {r.approved&&<div style={{marginTop:6}}><select value={r.overrideId||""} onChange={e=>setMatch(idx,e.target.value)} style={{...iSt,fontSize:12,padding:"5px 8px"}}><option value="">— Skip this item —</option>{inventory.map(i=><option key={i.id} value={i.id}>{i.name} ({i.unit}) · stock: {i.stock}</option>)}</select></div>}
           </div>)}
           <Inp label="Receipt Total (₦)" type="number" value={totalAmount} onChange={setTotalAmount} placeholder="Total amount paid"/>
-          <div style={{marginTop:12,display:"flex",gap:8}}><Btn variant="success" onClick={applyUpdates} disabled={!parsed.items.some(r=>r.approved&&r.overrideId)}>✓ Update Inventory & Log Expense</Btn><Btn variant="ghost" onClick={()=>{setParsed(null);setPhoto(null);setPhotoB64(null)}}>← Rescan</Btn></div>
+          <div style={{display:"flex",gap:8,marginTop:10}}><Btn variant="success" onClick={applyUpdates} disabled={!parsed.items.some(r=>r.approved&&r.overrideId)}>✓ Update Inventory & Log Expense</Btn><Btn variant="ghost" onClick={()=>{setParsed(null);setPhoto(null);setPhotoB64(null)}}>← Rescan</Btn></div>
         </Card>:<Card style={{background:"#FFF9EE",borderColor:"var(--gold)"}}>
           <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:12}}>How It Works</div>
-          {[["📸","Photograph any receipt — printed or handwritten market receipt."],["🔍","AI reads every item, quantity, and total. Matches items to your inventory."],["✅","Review, toggle off errors, fix inventory matches."],["📦","Tap Update — stock is added and expense is automatically logged."]].map(([icon,text])=><div key={icon} style={{display:"flex",gap:10,marginBottom:12,alignItems:"flex-start"}}><span style={{fontSize:18,flexShrink:0}}>{icon}</span><span style={{fontSize:13,color:"var(--muted)",lineHeight:1.6}}>{text}</span></div>)}
-          <div style={{padding:"8px 12px",background:"#FEF0D0",borderRadius:8,fontSize:12,color:"#7A5500",lineHeight:1.6}}><strong>Tip:</strong> Take photos in good natural light. Printed receipts give best results.</div>
+          {[["📸","Take a clear photo — printed supermarket receipt or handwritten market receipt."],["🔍","AI reads every item, quantity, and price. It can read handwriting too."],["✅","Review each item. Toggle off anything misread. Fix inventory matches if needed."],["📦","Tap Update — stock is added and expense is automatically logged."]].map(([icon,text])=><div key={icon} style={{display:"flex",gap:10,marginBottom:12}}><span style={{fontSize:18,flexShrink:0}}>{icon}</span><span style={{fontSize:13,color:"var(--muted)",lineHeight:1.6}}>{text}</span></div>)}
+          <div style={{padding:"8px 12px",background:"#FEF0D0",borderRadius:8,fontSize:12,color:"#7A5500",lineHeight:1.6}}><strong>Best results:</strong> Take photos in good natural or bright light. Lay the receipt flat. Avoid shadows across the writing. Even imperfect handwriting usually works.</div>
         </Card>}
       </div>
     </div>
   </div>
 }
 
-// ══════════════════════════════════════════════════════════════
-//  EXPENSES TAB
-// ══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+//  EXPENSES
+// ═══════════════════════════════════════════════════════════
 function Expenses({expenses,setExpenses}){
-  const [tab,setTab]=useState("all")
-  const [adding,setAdding]=useState(false)
+  const [tab,setTab]=useState("all");const [adding,setAdding]=useState(false)
   const [ne,setNe]=useState({date:today(),description:"",amount:"",category:"Ingredients",paymentMethod:"cash",notes:""})
 
   const saveExp=()=>{
@@ -593,59 +828,46 @@ function Expenses({expenses,setExpenses}){
     setExpenses(updated);saveExpenses(updated)
     setNe({date:today(),description:"",amount:"",category:"Ingredients",paymentMethod:"cash",notes:""});setAdding(false)
   }
-  const deleteExp=id=>{const updated=expenses.filter(e=>e.id!==id);setExpenses(updated);saveExpenses(updated)}
 
   const m=new Date().toISOString().slice(0,7)
   const filtered=tab==="all"?expenses:tab==="month"?expenses.filter(e=>e.date?.startsWith(m)):expenses.filter(e=>e.source===tab)
   const total=filtered.reduce((s,e)=>s+(e.amount||0),0)
-  const byCat={}
-  filtered.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+(e.amount||0)})
+  const byCat={};filtered.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+(e.amount||0)})
 
   return <div>
-    <SHead title="Expenses" sub="All business expenses — from receipts, bank imports, and manual cash entries."/>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
-      <Tabs tabs={[{v:"all",l:"All"},{v:"month",l:"This Month"},{v:"manual",l:"Cash"},{v:"receipt",l:"Receipts"}]} active={tab} onChange={setTab}/>
+    <SHead title="Expenses" sub="All business expenses — receipts, bank imports, and manual cash entries."/>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
+      <Tabs tabs={[{v:"all",l:"All"},{v:"month",l:"This Month"},{v:"manual",l:"Cash Entries"},{v:"receipt",l:"From Receipts"},{v:"bank",l:"From Bank"}]} active={tab} onChange={setTab}/>
       <Btn onClick={()=>setAdding(!adding)}>+ Add Cash Expense</Btn>
     </div>
-
     {adding&&<Card style={{marginBottom:14,background:"#FFF9EE",borderColor:"var(--gold)"}}>
-      <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:12}}>New Manual Expense</div>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:12}}>New Manual Expense (Cash / No Receipt)</div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10}}>
         <Inp label="Date *" type="date" value={ne.date} onChange={v=>setNe(p=>({...p,date:v}))}/>
-        <Inp label="Description *" value={ne.description} onChange={v=>setNe(p=>({...p,description:v}))} placeholder="e.g. Fruits from market"/>
+        <Inp label="Description *" value={ne.description} onChange={v=>setNe(p=>({...p,description:v}))} placeholder="e.g. Fresh fruits from market"/>
         <Inp label="Amount (₦) *" type="number" value={ne.amount} onChange={v=>setNe(p=>({...p,amount:v}))}/>
         <Sel label="Category" value={ne.category} onChange={v=>setNe(p=>({...p,category:v}))} options={EXP_CATS.map(c=>({value:c,label:c}))}/>
         <Sel label="Payment Method" value={ne.paymentMethod} onChange={v=>setNe(p=>({...p,paymentMethod:v}))} options={[{value:"cash",label:"Cash"},{value:"transfer",label:"Bank Transfer"},{value:"pos",label:"POS/Card"}]}/>
         <Inp label="Notes" value={ne.notes} onChange={v=>setNe(p=>({...p,notes:v}))} placeholder="Optional note"/>
       </div>
-      <div style={{display:"flex",gap:8}}><Btn onClick={saveExp}>Save Expense</Btn><Btn variant="ghost" onClick={()=>setAdding(false)}>Cancel</Btn></div>
+      <div style={{display:"flex",gap:8}}><Btn onClick={saveExp}>Save</Btn><Btn variant="ghost" onClick={()=>setAdding(false)}>Cancel</Btn></div>
     </Card>}
-
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
-      <Card style={{borderTop:"3px solid #B03A2E"}}>
-        <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Total Expenses</div>
-        <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:700,color:"#B03A2E"}}>{fmt(total)}</div>
-        <div style={{fontSize:11.5,color:"var(--muted)",marginTop:3}}>{filtered.length} entries</div>
-      </Card>
-      <Card>
-        <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>By Category</div>
-        {Object.entries(byCat).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([cat,amt])=><div key={cat} style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:12.5}}><span>{cat}</span><span style={{fontWeight:500}}>{fmt(amt)}</span></div>)}
-      </Card>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+      <Card style={{borderTop:"3px solid #B03A2E"}}><div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:5}}>Total Expenses</div><div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700,color:"#B03A2E"}}>{fmt(total)}</div><div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>{filtered.length} entries</div></Card>
+      <Card><div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>By Category</div>{Object.entries(byCat).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([cat,amt])=><div key={cat} style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:12.5}}><span>{cat}</span><span style={{fontWeight:500}}>{fmt(amt)}</span></div>)}</Card>
     </div>
-
-    <Card style={{padding:0}}>
+    <Card style={{padding:0,overflowX:"auto"}}>
       <table style={{width:"100%",borderCollapse:"collapse"}}>
-        <TH cols={["Date","Description","Category","Payment","Amount","Source",""]}/>
-        <tbody>
-          {filtered.length===0?<tr><td colSpan={7} style={{padding:36,textAlign:"center",color:"var(--muted)"}}>No expenses yet. Add a cash expense or scan a receipt.</td></tr>:
+        <TH cols={["Date","Description","Category","Method","Amount","Source",""]}/>
+        <tbody>{filtered.length===0?<tr><td colSpan={7} style={{padding:32,textAlign:"center",color:"var(--muted)"}}>No expenses found. Add one above or scan a receipt.</td></tr>:
           filtered.map((e,i)=><TR2 key={e.id} i={i} row={[
             <span style={{color:"var(--muted)",fontSize:12}}>{e.date}</span>,
             <span style={{fontWeight:500}}>{e.description}</span>,
             <Badge>{e.category}</Badge>,
-            <span style={{fontSize:12,color:"var(--muted)"}}>{e.paymentMethod}</span>,
+            <span style={{fontSize:12}}>{e.paymentMethod}</span>,
             <span style={{color:"#B03A2E",fontWeight:600}}>{fmt(e.amount)}</span>,
             <Badge color={e.source==="receipt"?"blue":e.source==="bank"?"green":"gray"}>{e.source||"manual"}</Badge>,
-            <Btn small variant="ghost" onClick={()=>deleteExp(e.id)}>×</Btn>,
+            <Btn small variant="ghost" onClick={()=>{const u=expenses.filter(x=>x.id!==e.id);setExpenses(u);saveExpenses(u)}}>×</Btn>,
           ]}/>)}
         </tbody>
       </table>
@@ -653,105 +875,151 @@ function Expenses({expenses,setExpenses}){
   </div>
 }
 
-// ══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
 //  RECORDS
-// ══════════════════════════════════════════════════════════════
-function Records({productions,setProductions,setView,setPrefillProd}){
+// ═══════════════════════════════════════════════════════════
+function Records({productions,setProductions,setView,setPrefillProd,user}){
   const [filter,setFilter]=useState("all")
-  const filtered=filter==="all"?productions:productions.filter(p=>filter==="pending"||filter==="delivered"?p.status===filter:p.paymentType===filter)
-  const markDelivered=async id=>{setProductions(p=>p.map(x=>x.id===id?{...x,status:"delivered"}:x));await updateProductionStatus(id,"delivered")}
+  const filtered=filter==="all"?productions:filter==="pending"||filter==="delivered"?productions.filter(p=>p.status===filter):productions.filter(p=>p.paymentType===filter)
+  const isOwner=user?.role==="owner"
 
   return <div>
     <SHead title="Production Records" sub={`${productions.length} total entries`}/>
     <Tabs tabs={[{v:"all",l:"All"},{v:"pending",l:"Pending"},{v:"delivered",l:"Delivered"},{v:"gift",l:"Gifts"},{v:"sample",l:"Samples"}]} active={filter} onChange={setFilter}/>
     <Card style={{padding:0,overflowX:"auto"}}>
       <table style={{width:"100%",borderCollapse:"collapse"}}>
-        <TH cols={["Date","Size · Covering","Flavours","Client","Cost","Delivery","Sale","Profit","Type","Status",""]}/>
-        <tbody>
-          {filtered.length===0?<tr><td colSpan={11} style={{padding:36,textAlign:"center",color:"var(--muted)"}}>No records matching this filter.</td></tr>:
-          filtered.map((p,i)=>{
-            const profit=(p.salePrice||0)-(p.cost||0)-(p.deliveryCost||0)
-            const ptColor={full:"green",gift:"purple",sample:"blue",discount:"gold"}[p.paymentType]||"gray"
-            return <TR2 key={p.id} i={i} row={[
-              <span style={{color:"var(--muted)",fontSize:12}}>{p.deliveryDate}</span>,
-              <span style={{fontWeight:500,fontSize:12.5}}>{p.size} · {p.covering}</span>,
-              <span style={{color:"var(--muted)",fontSize:11.5}}>{p.flavors}</span>,
-              <span style={{fontSize:12.5}}>{p.client}</span>,
-              fmt(p.cost),
-              <span style={{fontSize:12}}>{p.deliveryCost?fmt(p.deliveryCost):"—"}</span>,
-              <span style={{color:"var(--gold)",fontWeight:600}}>{fmt(p.salePrice)}</span>,
-              <span style={{color:"#357A52",fontWeight:600}}>{fmt(profit)}</span>,
-              <Badge color={ptColor}>{p.paymentType}</Badge>,
-              <Badge color={p.status==="delivered"?"green":"gold"}>{p.status}</Badge>,
-              <div style={{display:"flex",gap:4}}>
-                {p.status==="pending"&&<Btn small variant="outline" onClick={()=>markDelivered(p.id)}>✓</Btn>}
-                <Btn small variant="ghost" onClick={()=>{setPrefillProd(p);setView("invoices")}}>Invoice</Btn>
-              </div>,
-            ]}/>
-          })}
+        <TH cols={["Date","Cake","Flavours","Client",isOwner?"Cost":"","Delivery",isOwner?"Sale":"","Type","Status",""]}/>
+        <tbody>{filtered.length===0?<tr><td colSpan={10} style={{padding:32,textAlign:"center",color:"var(--muted)"}}>No records found.</td></tr>:
+          filtered.map((p,i)=><TR2 key={p.id} i={i} row={[
+            <span style={{color:"var(--muted)",fontSize:12}}>{p.deliveryDate}</span>,
+            <span style={{fontWeight:500,fontSize:12.5}}>{p.size} · {p.covering}</span>,
+            <span style={{color:"var(--muted)",fontSize:12}}>{p.flavors}</span>,
+            <span style={{fontSize:12.5}}>{p.client}</span>,
+            isOwner?fmt(p.cost):"",
+            <span style={{fontSize:12}}>{p.deliveryCost?fmt(p.deliveryCost):"—"}</span>,
+            isOwner?<span style={{color:"var(--gold)",fontWeight:600}}>{fmt(p.salePrice)}</span>:"",
+            <Badge color={{full:"green",gift:"purple",sample:"blue",discount:"gold",deposit:"blue"}[p.paymentType]||"gray"}>{p.paymentType}</Badge>,
+            <Badge color={p.status==="delivered"?"green":"gold"}>{p.status}</Badge>,
+            <div style={{display:"flex",gap:4}}>
+              {p.status==="pending"&&<Btn small variant="outline" onClick={async()=>{setProductions(pr=>pr.map(x=>x.id===p.id?{...x,status:"delivered"}:x));await updateProdStatus(p.id,"delivered")}}>✓ Done</Btn>}
+              {isOwner&&<Btn small variant="ghost" onClick={()=>{setPrefillProd(p);setView("invoices")}}>Invoice</Btn>}
+            </div>,
+          ]}/>)}
         </tbody>
       </table>
     </Card>
-    {filtered.length>0&&<div style={{marginTop:12,padding:"10px 12px",background:"var(--panel)",borderRadius:8,border:"1px solid var(--border)",display:"flex",gap:20,flexWrap:"wrap"}}>
-      <span style={{fontSize:13,color:"var(--muted)"}}>Revenue: <strong style={{color:"var(--gold)"}}>{fmt(filtered.filter(p=>p.paymentType==="full"||p.paymentType==="discount").reduce((s,p)=>s+(p.salePrice||0),0))}</strong></span>
+    {isOwner&&filtered.length>0&&<div style={{marginTop:12,padding:"10px 12px",background:"var(--panel)",borderRadius:8,border:"1px solid var(--border)",display:"flex",gap:20,flexWrap:"wrap"}}>
+      <span style={{fontSize:13,color:"var(--muted)"}}>Revenue: <strong style={{color:"var(--gold)"}}>{fmt(filtered.filter(p=>p.paymentType!=="gift"&&p.paymentType!=="sample").reduce((s,p)=>s+(p.salePrice||0),0))}</strong></span>
       <span style={{fontSize:13,color:"var(--muted)"}}>Cost: <strong>{fmt(filtered.reduce((s,p)=>s+(p.cost||0)+(p.deliveryCost||0),0))}</strong></span>
-      <span style={{fontSize:13,color:"var(--muted)"}}>Profit: <strong style={{color:"#357A52"}}>{fmt(filtered.filter(p=>p.paymentType==="full"||p.paymentType==="discount").reduce((s,p)=>s+(p.salePrice||0)-(p.cost||0)-(p.deliveryCost||0),0))}</strong></span>
-      <span style={{fontSize:13,color:"var(--muted)"}}>Gifts/Samples: <strong style={{color:"#6B32A0"}}>{filtered.filter(p=>p.paymentType==="gift"||p.paymentType==="sample").length}</strong></span>
+      <span style={{fontSize:13,color:"var(--muted)"}}>Profit: <strong style={{color:"#357A52"}}>{fmt(filtered.filter(p=>p.paymentType!=="gift"&&p.paymentType!=="sample").reduce((s,p)=>s+(p.salePrice||0)-(p.cost||0)-(p.deliveryCost||0),0))}</strong></span>
     </div>}
   </div>
 }
 
-// ══════════════════════════════════════════════════════════════
-//  BANK IMPORT
-// ══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+//  BANK IMPORT — supports PDF upload
+// ═══════════════════════════════════════════════════════════
 function BankImport({transactions,setTransactions,productions,expenses,setExpenses}){
   const [input,setInput]=useState("");const [loading,setLoading]=useState(false)
-  const [error,setError]=useState(null);const [parsed,setParsed]=useState([])
+  const [error,setError]=useState("");const [parsed,setParsed]=useState([])
+  const [mode,setMode]=useState("paste") // paste | file
+  const fileRef=useRef()
 
-  const parse=async()=>{
-    if(!input.trim())return;setLoading(true);setError(null)
+  const parseFromText=async(text)=>{
+    setLoading(true);setError("")
     try{
-      const raw=await callClaude([{role:"user",content:`Parse this Nigerian bank statement. Return ONLY a JSON array:\n[{"date":"YYYY-MM-DD","description":"narration","amount":12345,"type":"credit|debit","category":"sales|ingredients|delivery|packaging|utilities|salaries|marketing|transfer|unknown"}]\n\n${input}`}],"Parse Nigerian bank statements. Return JSON array only.")
+      const raw=await callClaude([{role:"user",content:`Parse this Nigerian GTBank/bank statement. Extract ALL transactions. Return ONLY a JSON array:\n[{"date":"YYYY-MM-DD","description":"narration","amount":12345,"type":"credit|debit","category":"sales|ingredients|delivery|packaging|salary|office|utilities|transfer|bank_charges|unknown"}]\n\nImportant: credits are money IN (customers paying), debits are money OUT (expenses).\nIgnore stamp duties, VAT charges, and commission lines below ₦500 — they are bank fees.\n\nStatement text:\n${text}`}],"Parse Nigerian bank statements accurately. Return JSON array only.")
       const result=JSON.parse(raw.replace(/```json|```/g,"").trim())
-      setParsed(result.map(t=>({...t,id:uid(),matchedProdId:null})))
-    }catch{setError("Could not parse. Paste raw text from your bank portal.")}
+      const filtered=result.filter(t=>t.amount>=100) // filter tiny bank charges
+      setParsed(filtered.map(t=>({...t,id:uid(),matchedProdId:null})))
+    }catch(err){setError("Could not parse: "+err.message)}
     finally{setLoading(false)}
+  }
+
+  const handleFile=e=>{
+    const file=e.target.files[0];if(!file)return;e.target.value=""
+    setLoading(true);setError("")
+    const reader=new FileReader()
+    reader.onload=async ev=>{
+      try{
+        const base64=ev.target.result.split(",")[1]
+        const isPDF=file.name.toLowerCase().endsWith(".pdf")||file.type==="application/pdf"
+        if(isPDF){
+          const raw=await callClaude([{role:"user",content:[
+            {type:"document",source:{type:"base64",media_type:"application/pdf",data:base64}},
+            {type:"text",text:`Parse ALL transactions from this Nigerian bank statement PDF. Return ONLY a JSON array:\n[{"date":"YYYY-MM-DD","description":"narration","amount":12345,"type":"credit|debit","category":"sales|ingredients|delivery|packaging|salary|office|utilities|transfer|bank_charges|unknown"}]\n\nCredits = money received from customers. Debits = money paid out.\nIgnore stamp duty and VAT/commission lines under ₦500.`}
+          ]}],"Parse Nigerian bank statement PDFs. Return JSON array only.")
+          const result=JSON.parse(raw.replace(/```json|```/g,"").trim())
+          const filtered=result.filter(t=>t.amount>=100)
+          setParsed(filtered.map(t=>({...t,id:uid(),matchedProdId:null})))
+          setLoading(false)
+        } else {
+          // CSV file
+          const text=atob(base64)
+          await parseFromText(text)
+        }
+      }catch(err){setError("Could not read file: "+err.message);setLoading(false)}
+    }
+    if(file.name.toLowerCase().endsWith(".pdf")){reader.readAsDataURL(file)}
+    else{reader.readAsText(file)}
   }
 
   const match=(txId,prodId)=>setParsed(p=>p.map(t=>t.id===txId?{...t,matchedProdId:prodId}:t))
 
   const saveAll=async()=>{
-    const updated=[...parsed,...transactions]
-    setTransactions(updated);await saveTransactions(parsed)
-    // Add debits to expenses
-    const debits=parsed.filter(t=>t.type==="debit").map(t=>({id:uid(),date:t.date,description:t.description,amount:t.amount,category:t.category==="ingredients"?"Ingredients":t.category==="delivery"?"Delivery":t.category==="utilities"?"Utilities":t.category==="salaries"?"Salaries":"Miscellaneous",paymentMethod:"transfer",source:"bank"}))
+    const updated=[...parsed,...transactions];setTransactions(updated);await saveTxns(parsed)
+    // Auto-add debits to expenses
+    const debits=parsed.filter(t=>t.type==="debit"&&t.category!=="bank_charges").map(t=>({
+      id:uid(),date:t.date,description:t.description,amount:t.amount,
+      category:{ingredients:"Ingredients",delivery:"Delivery",packaging:"Packaging",salary:"Salaries",office:"Utilities",utilities:"Utilities"}[t.category]||"Miscellaneous",
+      paymentMethod:"transfer",source:"bank"
+    }))
     if(debits.length>0){const updExp=[...debits,...expenses];setExpenses(updExp);saveExpenses(updExp)}
     setParsed([]);setInput("")
   }
 
+  const credits=parsed.filter(t=>t.type==="credit")
+  const debits=parsed.filter(t=>t.type==="debit")
+
   return <div>
-    <SHead title="Bank Statement Import" sub="Paste your statement — AI categorizes every transaction for your P&L."/>
+    <SHead title="Bank Statement Import" sub="Upload your bank PDF or paste statement text — AI categorizes every transaction."/>
     <Card style={{marginBottom:14,background:"#FFF9EE",borderColor:"var(--gold)"}}>
-      <div style={{fontWeight:600,fontSize:13,marginBottom:4}}>📅 About Payment Date Mismatch</div>
-      <p style={{fontSize:12.5,color:"var(--muted)",margin:0,lineHeight:1.7}}>Clients often pay deposits before delivery. Use the <em>Match to Order</em> column to link payments to the correct production record. Bank debits are automatically added to your Expenses tab.</p>
+      <div style={{fontWeight:600,fontSize:13,marginBottom:4}}>📅 Payment Date vs Delivery Date</div>
+      <p style={{fontSize:12.5,color:"var(--muted)",margin:0,lineHeight:1.7}}>Clients often pay deposits before delivery. After parsing, use the <em>Match to Order</em> column to link payments to the correct production record. Bank debits are automatically added to your Expenses tab.</p>
     </Card>
+
+    <div style={{display:"flex",gap:8,marginBottom:16}}>
+      <Btn small variant={mode==="paste"?"primary":"ghost"} onClick={()=>setMode("paste")}>📋 Paste Text</Btn>
+      <Btn small variant={mode==="file"?"primary":"ghost"} onClick={()=>setMode("file")}>📄 Upload PDF / CSV</Btn>
+    </div>
+
     {parsed.length===0?<Card>
-      <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:12}}>Paste Bank Statement Text</div>
-      <textarea value={input} onChange={e=>setInput(e.target.value)} placeholder={"Paste bank statement text here…\n\nDate        Narration                      Credit       Debit\n01/04/25    TRF from Chioma Obi            35,000\n03/04/25    Dangote Flour purchase                      12,500"} style={{width:"100%",minHeight:180,padding:"12px",borderRadius:8,border:"1px solid var(--border)",background:"#FAF7F0",fontSize:12.5,fontFamily:"monospace",color:"var(--text)",boxSizing:"border-box",resize:"vertical",outline:"none"}}/>
-      {error&&<div style={{color:"#B03A2E",fontSize:12.5,marginTop:8}}>⚠ {error}</div>}
-      <div style={{marginTop:10}}><Btn onClick={parse} disabled={loading||!input.trim()}>{loading?"🔍 Parsing…":"✦ Parse with AI"}</Btn></div>
+      {mode==="paste"?<>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:10}}>Paste Bank Statement Text</div>
+        <textarea value={input} onChange={e=>setInput(e.target.value)} placeholder={"Copy and paste your bank statement text here.\n\nYou can copy the text from your bank's website or app.\n\nThe AI will recognize GTBank, Access, Zenith, UBA, First Bank and all other Nigerian banks."} style={{width:"100%",minHeight:180,padding:"12px",borderRadius:8,border:"1px solid var(--border)",background:"#FAF7F0",fontSize:13,fontFamily:"monospace",color:"var(--text)",boxSizing:"border-box",resize:"vertical",outline:"none"}}/>
+        {error&&<div style={{color:"#B03A2E",fontSize:12.5,marginTop:8}}>⚠ {error}</div>}
+        <div style={{marginTop:10}}><Btn onClick={()=>parseFromText(input)} disabled={loading||!input.trim()}>{loading?"🔍 Parsing…":"✦ Parse Statement"}</Btn></div>
+      </>:<>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:10}}>Upload Bank Statement</div>
+        <div onClick={()=>fileRef.current?.click()} style={{border:"2px dashed var(--border)",borderRadius:10,padding:40,textAlign:"center",cursor:"pointer",background:"#FAF7F0",marginBottom:10}}>
+          <div style={{fontSize:36,marginBottom:8}}>📄</div>
+          <div style={{fontSize:14,color:"var(--muted)"}}>Click to upload</div>
+          <div style={{fontSize:12,color:"#C8B89A",marginTop:4}}>PDF or CSV bank statement</div>
+          <div style={{fontSize:11.5,color:"var(--gold)",marginTop:8}}>✓ GTBank PDF statements supported</div>
+        </div>
+        <input ref={fileRef} type="file" accept=".pdf,.csv,.txt" onChange={handleFile} style={{display:"none"}}/>
+        {loading&&<div style={{textAlign:"center",color:"var(--muted)",fontSize:13}}>🔍 AI is reading your statement… This may take 30-60 seconds for long statements.</div>}
+        {error&&<div style={{color:"#B03A2E",fontSize:12.5,marginTop:8}}>⚠ {error}</div>}
+      </>}
     </Card>:<div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:14}}>
-        {[{label:"Credits",val:fmt(parsed.filter(t=>t.type==="credit").reduce((s,t)=>s+t.amount,0)),sub:`${parsed.filter(t=>t.type==="credit").length} in`,color:"#357A52"},
-          {label:"Debits",val:fmt(parsed.filter(t=>t.type==="debit").reduce((s,t)=>s+t.amount,0)),sub:`${parsed.filter(t=>t.type==="debit").length} out`,color:"#B03A2E"},
-          {label:"Unmatched",val:parsed.filter(t=>t.type==="credit"&&!t.matchedProdId).length,sub:"credits need matching",color:"var(--gold)"}
-        ].map(s=><Card key={s.label}><div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>{s.label}</div><div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700,color:s.color}}>{s.val}</div><div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>{s.sub}</div></Card>)}
+        {[{label:"Credits (In)",val:fmt(credits.reduce((s,t)=>s+t.amount,0)),sub:`${credits.length} payments in`,color:"#357A52"},{label:"Debits (Out)",val:fmt(debits.reduce((s,t)=>s+t.amount,0)),sub:`${debits.length} payments out`,color:"#B03A2E"},{label:"Unmatched Credits",val:parsed.filter(t=>t.type==="credit"&&!t.matchedProdId).length,sub:"need order matching",color:"var(--gold)"}].map(s=><Card key={s.label}><div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:5}}>{s.label}</div><div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700,color:s.color}}>{s.val}</div><div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>{s.sub}</div></Card>)}
       </div>
       <Card style={{padding:0,marginBottom:12,overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse"}}>
           <TH cols={["Date","Description","Amount","Type","Category","Match to Order"]}/>
           <tbody>{parsed.map((t,i)=><TR2 key={t.id} i={i} row={[
-            <span style={{color:"var(--muted)",fontSize:12}}>{t.date}</span>,t.description,
+            <span style={{color:"var(--muted)",fontSize:12}}>{t.date}</span>,<span style={{fontSize:12.5}}>{t.description}</span>,
             <span style={{fontWeight:600,color:t.type==="credit"?"#357A52":"#B03A2E"}}>{t.type==="credit"?"+":"–"}{fmt(t.amount)}</span>,
             <Badge color={t.type==="credit"?"green":"red"}>{t.type}</Badge>,
             <Badge>{t.category}</Badge>,
@@ -764,212 +1032,153 @@ function BankImport({transactions,setTransactions,productions,expenses,setExpens
   </div>
 }
 
-// ══════════════════════════════════════════════════════════════
-//  REPORTS  (downloadable)
-// ══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+//  REPORTS (downloadable)
+// ═══════════════════════════════════════════════════════════
 function Reports({productions,transactions,expenses,company}){
   const allMonths=[...new Set([...productions.map(p=>p.deliveryDate?.slice(0,7)),...transactions.map(t=>t.date?.slice(0,7))].filter(Boolean))].sort().reverse()
-  const curMonth=new Date().toISOString().slice(0,7)
-  const [sel,setSel]=useState(allMonths[0]||curMonth)
+  const cur=new Date().toISOString().slice(0,7)
+  const [sel,setSel]=useState(allMonths[0]||cur)
   const mp=productions.filter(p=>p.deliveryDate?.startsWith(sel))
   const mt=transactions.filter(t=>t.date?.startsWith(sel))
   const me=expenses.filter(e=>e.date?.startsWith(sel))
-  const paidOrders=mp.filter(p=>p.paymentType==="full"||p.paymentType==="discount")
-  const rev=paidOrders.reduce((s,p)=>s+(p.salePrice||0),0)
+  const paid=mp.filter(p=>p.paymentType!=="gift"&&p.paymentType!=="sample")
+  const rev=paid.reduce((s,p)=>s+(p.salePrice||0),0)
   const prodCost=mp.reduce((s,p)=>s+(p.cost||0),0)
-  const deliveryCosts=mp.reduce((s,p)=>s+(p.deliveryCost||0),0)
+  const delivCosts=mp.reduce((s,p)=>s+(p.deliveryCost||0),0)
   const bankDebits=mt.filter(t=>t.type==="debit").reduce((s,t)=>s+t.amount,0)
   const bankCredits=mt.filter(t=>t.type==="credit").reduce((s,t)=>s+t.amount,0)
   const manualExp=me.filter(e=>e.source==="manual").reduce((s,e)=>s+(e.amount||0),0)
-  const totalCosts=prodCost+deliveryCosts+manualExp
-  const grossProfit=rev-totalCosts
-  const netProfit=grossProfit-bankDebits
-  const margin=rev>0?Math.round((grossProfit/rev)*100):0
+  const totalCost=prodCost+delivCosts+manualExp
+  const gross=rev-totalCost;const net=gross-bankDebits
+  const margin=rev>0?Math.round((gross/rev)*100):0
   const monthLabel=sel?new Date(sel+"-02").toLocaleDateString("en-NG",{month:"long",year:"numeric"}):""
-  const bySize={};mp.forEach(p=>{const k=`${p.size} · ${p.covering}`;if(!bySize[k])bySize[k]={qty:0,rev:0,cost:0};bySize[k].qty++;bySize[k].rev+=(p.salePrice||0);bySize[k].cost+=(p.cost||0)+(p.deliveryCost||0)})
+  const bySize={};mp.forEach(p=>{const k=`${p.size}·${p.covering}`;if(!bySize[k])bySize[k]={qty:0,rev:0,cost:0};bySize[k].qty++;bySize[k].rev+=(p.salePrice||0);bySize[k].cost+=(p.cost||0)+(p.deliveryCost||0)})
 
-  const downloadReport=()=>{
+  const dl=()=>{
     const w=window.open("","_blank")
-    w.document.write(`<!DOCTYPE html><html><head><title>LayerLedger P&L — ${monthLabel}</title><style>
-      body{font-family:Arial,sans-serif;padding:40px;color:#291608;max-width:700px;margin:0 auto}
-      h1{font-size:24px;color:${company.primaryColor||"#C8912A"}}h2{font-size:16px;color:#555;font-weight:normal;margin-top:0}
-      .grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin:20px 0}
-      .stat{border:1px solid #E0D3BB;border-radius:8px;padding:14px}
-      .stat-label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:4px}
-      .stat-val{font-size:20px;font-weight:bold;color:${company.primaryColor||"#C8912A"}}
-      table{width:100%;border-collapse:collapse;margin:16px 0}
-      th{background:#EDE5D6;padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:#888}
-      td{padding:8px 10px;border-bottom:1px solid #E0D3BB;font-size:13px}
-      .total-row{font-weight:bold;background:#F5F0E4}
-      .profit-box{background:${netProfit>=0?"#E8F5EE":"#FDEBE9"};border-radius:8px;padding:16px;margin:16px 0;display:flex;justify-content:space-between;align-items:center}
-      .profit-label{font-size:16px;font-weight:bold}
-      .profit-val{font-size:20px;font-weight:bold;color:${netProfit>=0?"#357A52":"#B03A2E"}}
-      @media print{button{display:none}}
-    </style></head><body>
-      ${company.logo?`<img src="${company.logo}" style="height:60px;margin-bottom:10px" alt="logo"/>`:""}
-      <h1>${company.name||"Bakery"} — Profit & Loss Report</h1>
-      <h2>${monthLabel}</h2>
+    w.document.write(`<!DOCTYPE html><html><head><title>P&L ${monthLabel}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;color:#291608;padding:40px;max-width:750px;margin:0 auto}.gold{color:${company.primaryColor||"#C8912A"}}.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px}h1{font-size:22px;font-weight:700}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0}.stat{border:1px solid #E0D3BB;border-radius:8px;padding:12px}.sl{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:4px}.sv{font-size:18px;font-weight:bold;color:${company.primaryColor||"#C8912A"}}table{width:100%;border-collapse:collapse;margin:14px 0}th{background:#EDE5D6;padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:#888}td{padding:8px 10px;border-bottom:1px solid #E0D3BB;font-size:13px}.total{font-weight:bold;background:#F5F0E4}.pbox{padding:14px 16px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;margin-top:14px;background:${net>=0?"#E8F5EE":"#FDEBE9"}}.plabel{font-size:15px;font-weight:bold}.pval{font-size:17px;font-weight:bold;color:${net>=0?"#357A52":"#B03A2E"}}@media print{button{display:none}}</style></head><body>
+      <div class="header"><div>${company.logo?`<img src="${company.logo}" style="height:55px;display:block;margin-bottom:8px" alt="logo"/>`:""}
+      <h1 class="gold">${company.name||"Bakery"}</h1><div style="font-size:13px;color:#888;margin-top:2px">${company.tagline||""}</div></div>
+      <div><div style="font-size:22px;font-weight:700;color:#DDD">PROFIT & LOSS</div><div style="font-size:13px;color:#888;margin-top:4px">${monthLabel}</div></div></div>
       <div class="grid">
-        <div class="stat"><div class="stat-label">Gross Revenue</div><div class="stat-val">₦${Math.round(rev).toLocaleString()}</div><div style="font-size:11px;color:#888">${paidOrders.length} orders</div></div>
-        <div class="stat"><div class="stat-label">Production Cost</div><div class="stat-val">₦${Math.round(totalCosts).toLocaleString()}</div><div style="font-size:11px;color:#888">incl. delivery</div></div>
-        <div class="stat"><div class="stat-label">Gross Profit</div><div class="stat-val">₦${Math.round(grossProfit).toLocaleString()}</div><div style="font-size:11px;color:#888">${margin}% margin</div></div>
-        <div class="stat"><div class="stat-label">Net Profit</div><div class="stat-val" style="color:${netProfit>=0?"#357A52":"#B03A2E"}">₦${Math.round(netProfit).toLocaleString()}</div><div style="font-size:11px;color:#888">after all expenses</div></div>
+        <div class="stat"><div class="sl">Revenue</div><div class="sv">₦${Math.round(rev).toLocaleString()}</div><div style="font-size:11px;color:#888">${paid.length} orders</div></div>
+        <div class="stat"><div class="sl">Prod. Cost</div><div class="sv">₦${Math.round(totalCost).toLocaleString()}</div></div>
+        <div class="stat"><div class="sl">Gross Profit</div><div class="sv">₦${Math.round(gross).toLocaleString()}</div><div style="font-size:11px;color:#888">${margin}% margin</div></div>
+        <div class="stat"><div class="sl">Net Profit</div><div class="sv" style="color:${net>=0?"#357A52":"#B03A2E"}">₦${Math.round(net).toLocaleString()}</div></div>
       </div>
-      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:1px;color:#888">Sales</h3>
+      <h3 style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#888;margin:20px 0 8px">Income from Sales</h3>
       <table><tr><th>Date</th><th>Client</th><th>Product</th><th>Type</th><th>Amount</th></tr>
         ${mp.map(p=>`<tr><td>${p.deliveryDate||""}</td><td>${p.client||""}</td><td>${p.size} ${p.covering}</td><td>${p.paymentType}</td><td>₦${Math.round(p.salePrice||0).toLocaleString()}</td></tr>`).join("")}
-        <tr class="total-row"><td colspan="4">TOTAL REVENUE</td><td>₦${Math.round(rev).toLocaleString()}</td></tr>
-      </table>
-      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:1px;color:#888">Expenses</h3>
+        <tr class="total"><td colspan="4">TOTAL REVENUE</td><td>₦${Math.round(rev).toLocaleString()}</td></tr></table>
+      <h3 style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#888;margin:20px 0 8px">Costs & Expenses</h3>
       <table><tr><th>Date</th><th>Description</th><th>Category</th><th>Source</th><th>Amount</th></tr>
         ${me.map(e=>`<tr><td>${e.date||""}</td><td>${e.description||""}</td><td>${e.category||""}</td><td>${e.source||"manual"}</td><td>₦${Math.round(e.amount||0).toLocaleString()}</td></tr>`).join("")}
         ${mt.filter(t=>t.type==="debit").map(t=>`<tr><td>${t.date||""}</td><td>${t.description||""}</td><td>${t.category||""}</td><td>bank</td><td>₦${Math.round(t.amount||0).toLocaleString()}</td></tr>`).join("")}
-        <tr class="total-row"><td colspan="4">TOTAL EXPENSES</td><td>₦${Math.round(totalCosts+bankDebits).toLocaleString()}</td></tr>
-      </table>
-      <div class="profit-box"><div class="profit-label">NET PROFIT — ${monthLabel}</div><div class="profit-val">₦${Math.round(netProfit).toLocaleString()}</div></div>
+        <tr class="total"><td colspan="4">TOTAL COSTS</td><td>₦${Math.round(totalCost+bankDebits).toLocaleString()}</td></tr></table>
+      <div class="pbox"><div class="plabel">NET PROFIT — ${monthLabel}</div><div class="pval">₦${Math.round(net).toLocaleString()}</div></div>
       <p style="font-size:11px;color:#aaa;margin-top:30px">Generated by LayerLedger · ${new Date().toLocaleDateString()}</p>
-      <script>window.print()</script>
-    </body></html>`)
+      <script>window.print()</script></body></html>`)
     w.document.close()
   }
 
   return <div>
-    <SHead title="Financial Reports" sub="Monthly P&L — production records + bank data + expenses combined."/>
-    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18,flexWrap:"wrap"}}>
-      <span style={{fontSize:11,color:"var(--muted)",textTransform:"uppercase",letterSpacing:0.8}}>Period:</span>
+    <SHead title="Financial Reports" sub="Monthly P&L compiled from productions, expenses, and bank data."/>
+    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,flexWrap:"wrap"}}>
       <select value={sel} onChange={e=>setSel(e.target.value)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid var(--border)",background:"var(--panel)",fontSize:13,color:"var(--text)"}}>
-        {(allMonths.length>0?allMonths:[curMonth]).map(m=><option key={m} value={m}>{new Date(m+"-02").toLocaleDateString("en-NG",{month:"long",year:"numeric"})}</option>)}
+        {(allMonths.length?allMonths:[cur]).map(m=><option key={m} value={m}>{new Date(m+"-02").toLocaleDateString("en-NG",{month:"long",year:"numeric"})}</option>)}
       </select>
-      <Btn onClick={downloadReport} variant="outline">📥 Download PDF Report</Btn>
+      <Btn onClick={dl} variant="outline">📥 Download PDF Report</Btn>
     </div>
-
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,marginBottom:18}}>
-      {[{label:"Gross Revenue",val:fmt(rev),sub:`${paidOrders.length} paid orders`,color:"var(--gold)"},
-        {label:"Production Cost",val:fmt(prodCost),sub:"ingredients + margin",color:"#2A5F9A"},
-        {label:"Delivery Costs",val:fmt(deliveryCosts),sub:"all deliveries",color:"#8C6E52"},
-        {label:"Other Expenses",val:fmt(manualExp+bankDebits),sub:"cash + bank",color:"#8C6E52"},
-        {label:"Gross Profit",val:fmt(grossProfit),sub:`${margin}% margin`,color:"#357A52"},
-        {label:"Net Profit",val:fmt(netProfit),sub:"after all costs",color:netProfit>=0?"#357A52":"#B03A2E"},
-      ].map(s=><Card key={s.label} style={{borderBottom:`3px solid ${s.color}`}}>
-        <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{s.label}</div>
-        <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700,color:s.color}}>{s.val}</div>
-        <div style={{fontSize:11,color:"var(--muted)",marginTop:3}}>{s.sub}</div>
-      </Card>)}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10,marginBottom:16}}>
+      {[{l:"Revenue",v:fmt(rev),s:`${paid.length} paid`,c:"var(--gold)"},{l:"Prod. Cost",v:fmt(prodCost),s:"ingredients",c:"#2A5F9A"},{l:"Delivery",v:fmt(delivCosts),s:"all orders",c:"#8C6E52"},{l:"Other Exp.",v:fmt(manualExp+bankDebits),s:"cash+bank",c:"#8C6E52"},{l:"Gross Profit",v:fmt(gross),s:margin+"% margin",c:"#357A52"},{l:"Net Profit",v:fmt(net),s:"after all costs",c:net>=0?"#357A52":"#B03A2E"}].map(s=><Card key={s.l} style={{borderBottom:`3px solid ${s.c}`}}><div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:5}}>{s.l}</div><div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700,color:s.c}}>{s.v}</div><div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>{s.s}</div></Card>)}
     </div>
-
     <div style={{display:"grid",gridTemplateColumns:"1.5fr 1fr",gap:16}}>
       <Card>
-        <div style={{fontFamily:"'Playfair Display',serif",fontSize:16,fontWeight:600,marginBottom:4}}>Profit & Loss Statement</div>
-        <div style={{fontSize:12,color:"var(--muted)",marginBottom:16}}>{monthLabel}</div>
-        <div style={{fontSize:10.5,fontWeight:600,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Income</div>
-        {mp.length===0?<div style={{fontSize:13,color:"var(--muted)",marginBottom:10}}>No productions this month.</div>:
-        mp.map(p=><div key={p.id} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12.5}}><span>{p.size} {p.covering} — {p.client} <Badge color={p.paymentType==="gift"?"purple":p.paymentType==="sample"?"blue":"gray"}>{p.paymentType}</Badge></span><span style={{fontWeight:500}}>{(p.paymentType==="full"||p.paymentType==="discount")?fmt(p.salePrice):"—"}</span></div>)}
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:16,fontWeight:600,marginBottom:4}}>Profit & Loss — {monthLabel}</div>
+        <div style={{fontSize:11,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:6,marginTop:14}}>Income</div>
+        {mp.length===0?<div style={{fontSize:13,color:"var(--muted)",marginBottom:10}}>No productions this month.</div>:mp.map(p=><div key={p.id} style={{display:"flex",justifyContent:"space-between",padding:"3px 0",fontSize:12.5}}><span>{p.size} {p.covering} — {p.client} <span style={{opacity:0.6}}>({p.paymentType})</span></span><span style={{fontWeight:500}}>{fmt(p.salePrice)}</span></div>)}
         <div style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderTop:"1px solid var(--border)",fontWeight:700,marginTop:4}}><span>Total Revenue</span><span style={{color:"#357A52"}}>{fmt(rev)}</span></div>
-        <div style={{fontSize:10.5,fontWeight:600,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginTop:14,marginBottom:6}}>Costs & Expenses</div>
-        {[["Production (ingredients)",fmt(prodCost)],["Delivery costs",fmt(deliveryCosts)],["Cash expenses",fmt(manualExp)],["Bank expenses",fmt(bankDebits)]].map(([k,v])=><div key={k} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12.5}}><span>{k}</span><span style={{color:"#B03A2E"}}>({v})</span></div>)}
-        <div style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderTop:"1px solid var(--border)",fontWeight:700,marginTop:4}}><span>Total Costs</span><span style={{color:"#B03A2E"}}>({fmt(totalCosts+bankDebits)})</span></div>
-        <div style={{display:"flex",justifyContent:"space-between",padding:"12px 14px",background:netProfit>=0?"#E8F5EE":"#FDEBE9",borderRadius:8,marginTop:12}}><span style={{fontSize:14,fontWeight:700}}>NET PROFIT</span><span style={{fontSize:15,fontWeight:700,color:netProfit>=0?"#357A52":"#B03A2E"}}>{fmt(netProfit)}</span></div>
+        <div style={{fontSize:11,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginTop:14,marginBottom:6}}>Costs</div>
+        {[["Production (ingredients)",fmt(prodCost)],["Delivery costs",fmt(delivCosts)],["Cash expenses",fmt(manualExp)],["Bank expenses",fmt(bankDebits)]].map(([k,v])=><div key={k} style={{display:"flex",justifyContent:"space-between",padding:"3px 0",fontSize:12.5}}><span>{k}</span><span style={{color:"#B03A2E"}}>({v})</span></div>)}
+        <div style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderTop:"1px solid var(--border)",fontWeight:700,marginTop:4}}><span>Total Costs</span><span style={{color:"#B03A2E"}}>({fmt(totalCost+bankDebits)})</span></div>
+        <div style={{display:"flex",justifyContent:"space-between",padding:"12px 14px",background:net>=0?"#E8F5EE":"#FDEBE9",borderRadius:8,marginTop:12}}><span style={{fontSize:14,fontWeight:700}}>NET PROFIT</span><span style={{fontSize:15,fontWeight:700,color:net>=0?"#357A52":"#B03A2E"}}>{fmt(net)}</span></div>
       </Card>
-
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         <Card>
           <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:12}}>Revenue by Cake Type</div>
-          {Object.keys(bySize).length===0?<div style={{fontSize:13,color:"var(--muted)"}}>No data this period.</div>:
-          Object.entries(bySize).map(([k,v])=><div key={k} style={{marginBottom:10}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{fontSize:12.5}}>{k} <span style={{color:"var(--muted)"}}>×{v.qty}</span></span><span style={{fontSize:12.5,fontWeight:600,color:"var(--gold)"}}>{fmt(v.rev)}</span></div>
+          {Object.keys(bySize).length===0?<div style={{fontSize:13,color:"var(--muted)"}}>No data for this period.</div>:Object.entries(bySize).map(([k,v])=><div key={k} style={{marginBottom:10}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{fontSize:12.5}}>{k.replace("·"," · ")} ×{v.qty}</span><span style={{fontSize:12.5,fontWeight:600,color:"var(--gold)"}}>{fmt(v.rev)}</span></div>
             <div style={{height:4,background:"var(--border)",borderRadius:2}}><div style={{height:"100%",width:`${rev>0?(v.rev/rev)*100:0}%`,background:"var(--gold)",borderRadius:2}}/></div>
             <div style={{fontSize:11,color:"#357A52",marginTop:2}}>Profit: {fmt(v.rev-v.cost)}</div>
           </div>)}
         </Card>
-        {(bankCredits>0||mt.length>0)&&<Card style={{background:"#FFF9EE",borderColor:"var(--gold)"}}>
+        {bankCredits>0&&<Card style={{background:"#FFF9EE",borderColor:"var(--gold)"}}>
           <div style={{fontFamily:"'Playfair Display',serif",fontSize:13,fontWeight:600,marginBottom:8}}>📅 Bank Reconciliation</div>
-          {[["Production records",fmt(rev)],["Bank credits received",fmt(bankCredits)]].map(([k,v])=><div key={k} style={{display:"flex",justifyContent:"space-between",fontSize:12.5,marginBottom:5}}><span style={{color:"var(--muted)"}}>{k}</span><strong>{v}</strong></div>)}
-          {Math.abs(rev-bankCredits)>500?<div style={{background:"#FEF3DC",borderRadius:6,padding:"7px 10px",fontSize:12,color:"#8A5F10"}}>⚠ {fmt(Math.abs(rev-bankCredits))} difference — check Bank Import.</div>:<div style={{color:"#357A52",fontSize:12,fontWeight:500}}>✓ Records and bank totals reconciled</div>}
+          {[["Production records",fmt(rev)],["Bank credits received",fmt(bankCredits)]].map(([k,v])=><div key={k} style={{display:"flex",justifyContent:"space-between",fontSize:12.5,marginBottom:4}}><span style={{color:"var(--muted)"}}>{k}</span><strong>{v}</strong></div>)}
+          {Math.abs(rev-bankCredits)>1000?<div style={{background:"#FEF3DC",borderRadius:6,padding:"7px 10px",fontSize:12,color:"#8A5F10",marginTop:4}}>⚠ {fmt(Math.abs(rev-bankCredits))} difference — check Bank Import for unmatched payments.</div>:<div style={{color:"#357A52",fontSize:12,fontWeight:500,marginTop:4}}>✓ Reconciled</div>}
         </Card>}
-        <Card>
-          <div style={{fontFamily:"'Playfair Display',serif",fontSize:13,fontWeight:600,marginBottom:8}}>Production Summary</div>
-          {[["Paid orders",paidOrders.length],["Gift/Sample",mp.filter(p=>p.paymentType==="gift"||p.paymentType==="sample").length],["Pending delivery",mp.filter(p=>p.status==="pending").length],["Delivered",mp.filter(p=>p.status==="delivered").length]].map(([k,v])=><div key={k} style={{display:"flex",justifyContent:"space-between",fontSize:12.5,padding:"4px 0",borderBottom:"1px solid var(--border)"}}><span style={{color:"var(--muted)"}}>{k}</span><strong>{v}</strong></div>)}
-        </Card>
       </div>
     </div>
   </div>
 }
 
-// ══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
 //  SHOPPING LIST
-// ══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
 function ShoppingList({inventory,company}){
-  const [freq,setFreq]=useState("weekly")
-  const [generated,setGenerated]=useState(false)
+  const [freq,setFreq]=useState("weekly");const [done,setDone]=useState(false)
+  const low=inventory.filter(i=>i.stock<=(i.minStock||3))
+  const zero=inventory.filter(i=>i.stock===0)
 
-  const lowItems=inventory.filter(i=>i.stock<=(i.minStock||3))
-  const criticalItems=inventory.filter(i=>i.stock===0)
-
-  const downloadList=()=>{
-    const freqLabel={weekly:"Weekly",biweekly:"Bi-Weekly",monthly:"Monthly"}[freq]
+  const dl=()=>{
     const w=window.open("","_blank")
-    w.document.write(`<!DOCTYPE html><html><head><title>${freqLabel} Shopping List</title><style>
-      body{font-family:Arial,sans-serif;padding:40px;max-width:600px;margin:0 auto;color:#291608}
-      h1{color:${company.primaryColor||"#C8912A"};font-size:22px}
-      h2{font-size:14px;color:#888;font-weight:normal;margin-top:0}
-      table{width:100%;border-collapse:collapse;margin:20px 0}
-      th{background:#EDE5D6;padding:10px;text-align:left;font-size:11px;text-transform:uppercase}
-      td{padding:10px;border-bottom:1px solid #E0D3BB;font-size:13px}
-      .critical{color:#B03A2E;font-weight:bold}
-      .checkbox{width:20px;height:20px;border:2px solid #C8912A;border-radius:4px;display:inline-block}
-      @media print{button{display:none}}
-    </style></head><body>
-      ${company.logo?`<img src="${company.logo}" style="height:50px;margin-bottom:10px" alt="logo"/>`:""}
-      <h1>${company.name||"Bakery"} — ${freqLabel} Shopping List</h1>
-      <h2>Generated: ${new Date().toLocaleDateString("en-NG",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</h2>
-      ${criticalItems.length>0?`<div style="background:#FDEBE9;padding:12px;border-radius:8px;margin-bottom:16px;font-size:13px;color:#B03A2E"><strong>🚨 OUT OF STOCK:</strong> ${criticalItems.map(i=>i.name).join(", ")}</div>`:""}
-      <table>
-        <tr><th>✓</th><th>Item</th><th>Category</th><th>Current Stock</th><th>Min Stock</th><th>Need to Buy</th><th>Est. Cost</th></tr>
-        ${lowItems.map(i=>{const needed=Math.max(0,(i.minStock||3)*3-i.stock);return`<tr><td><div class="checkbox"></div></td><td class="${i.stock===0?"critical":""}">${i.name}${i.stock===0?" 🚨":""}</td><td>${i.cat||""}</td><td>${i.stock} ${i.unit}</td><td>${i.minStock||3} ${i.unit}</td><td>${needed} ${i.unit}</td><td>₦${Math.round(i.cost*needed).toLocaleString()}</td></tr>`}).join("")}
-        <tr style="font-weight:bold;background:#F5F0E4"><td colspan="6">ESTIMATED TOTAL</td><td>₦${Math.round(lowItems.reduce((s,i)=>{const n=Math.max(0,(i.minStock||3)*3-i.stock);return s+i.cost*n},0)).toLocaleString()}</td></tr>
+    w.document.write(`<!DOCTYPE html><html><head><title>Shopping List</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:40px;max-width:650px;margin:0 auto;color:#291608}h1{color:${company.primaryColor||"#C8912A"};font-size:20px}h2{font-size:13px;color:#888;font-weight:normal;margin:4px 0 20px}table{width:100%;border-collapse:collapse;margin:16px 0}th{background:#EDE5D6;padding:10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:#888}td{padding:10px;border-bottom:1px solid #E0D3BB;font-size:13px}.cb{width:18px;height:18px;border:2px solid ${company.primaryColor||"#C8912A"};border-radius:3px;display:inline-block}.sos{color:#B03A2E;font-weight:bold}@media print{button{display:none}}</style></head><body>
+      ${company.logo?`<img src="${company.logo}" style="height:50px;margin-bottom:10px;display:block" alt="logo"/>`:""}
+      <h1>${company.name} — ${freq==="weekly"?"Weekly":freq==="biweekly"?"Bi-Weekly":"Monthly"} Shopping List</h1>
+      <h2>${new Date().toLocaleDateString("en-NG",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</h2>
+      ${zero.length>0?`<div style="background:#FDEBE9;padding:12px;border-radius:8px;margin-bottom:16px;font-size:13px;color:#B03A2E"><strong>🚨 OUT OF STOCK — BUY NOW:</strong> ${zero.map(i=>i.name).join(", ")}</div>`:""}
+      <table><tr><th>✓</th><th>Item</th><th>Category</th><th>Current</th><th>Min</th><th>Buy Qty</th><th>Est. Cost</th></tr>
+        ${low.map(i=>{const need=Math.max(0,(i.minStock||3)*4-i.stock);return`<tr><td><div class="cb"></div></td><td class="${i.stock===0?"sos":""}">${i.name}${i.stock===0?" 🚨":""}</td><td>${i.cat}</td><td>${i.stock} ${i.unit}</td><td>${i.minStock||3}</td><td>${need} ${i.unit}</td><td>₦${Math.round(i.cost*need).toLocaleString()}</td></tr>`}).join("")}
+        <tr style="font-weight:bold;background:#F5F0E4"><td colspan="6">ESTIMATED TOTAL</td><td>₦${Math.round(low.reduce((s,i)=>{const n=Math.max(0,(i.minStock||3)*4-i.stock);return s+i.cost*n},0)).toLocaleString()}</td></tr>
       </table>
-      <p style="font-size:11px;color:#aaa">Generated by LayerLedger · ${new Date().toLocaleDateString()}</p>
-      <script>window.print()</script>
-    </body></html>`)
-    w.document.close()
-    setGenerated(true)
+      <p style="font-size:11px;color:#aaa;margin-top:30px">LayerLedger · ${new Date().toLocaleDateString()}</p>
+      <script>window.print()</script></body></html>`)
+    w.document.close();setDone(true)
   }
 
   return <div>
-    <SHead title="Shopping List" sub="Generate a restock list based on your current inventory levels."/>
+    <SHead title="Shopping List" sub="Generate a restock list based on current inventory levels."/>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
       <Card>
         <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:14}}>Generate Shopping List</div>
         <Sel label="Frequency" value={freq} onChange={setFreq} options={[{value:"weekly",label:"Weekly"},{value:"biweekly",label:"Bi-Weekly (every 2 weeks)"},{value:"monthly",label:"Monthly"}]}/>
-        <div style={{marginBottom:14,padding:"10px 12px",background:"#FFF9EE",borderRadius:8,border:"1px solid var(--gold)",fontSize:13}}>
-          <strong style={{color:"var(--text)"}}>{lowItems.length} items</strong> <span style={{color:"var(--muted)"}}>need restocking</span>
-          {criticalItems.length>0&&<div style={{color:"#B03A2E",marginTop:4,fontWeight:500}}>🚨 {criticalItems.length} out of stock!</div>}
+        <div style={{padding:"10px 12px",background:"#FFF9EE",borderRadius:8,border:"1px solid var(--gold)",fontSize:13,marginBottom:14}}>
+          <strong style={{color:"var(--text)"}}>{low.length} items</strong> <span style={{color:"var(--muted)"}}>need restocking</span>
+          {zero.length>0&&<div style={{color:"#B03A2E",marginTop:4,fontWeight:500}}>🚨 {zero.length} completely out of stock</div>}
         </div>
-        <Btn full onClick={downloadList}>📥 Download & Print Shopping List</Btn>
-        {generated&&<div style={{marginTop:8,fontSize:12.5,color:"#357A52"}}>✓ Shopping list opened in new tab — print or save as PDF.</div>}
-
-        <div style={{marginTop:16,fontFamily:"'Playfair Display',serif",fontSize:13,fontWeight:600,marginBottom:8}}>Low Stock Alerts</div>
-        <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:10}}>Items at or below their minimum stock level:</div>
-        {lowItems.length===0?<div style={{fontSize:13,color:"#357A52"}}>✓ All items are well-stocked!</div>:
-        lowItems.map(i=><div key={i.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:"1px solid var(--border)"}}>
-          <div><div style={{fontSize:13,fontWeight:500}}>{i.name}</div><div style={{fontSize:11.5,color:"var(--muted)"}}>Min: {i.minStock||3} {i.unit}</div></div>
-          <Badge color={i.stock===0?"red":"gold"}>{i.stock===0?"OUT":i.stock+" "+i.unit}</Badge>
-        </div>)}
+        <Btn full onClick={dl}>📥 Download & Print Shopping List</Btn>
+        {done&&<div style={{marginTop:8,fontSize:12.5,color:"#357A52"}}>✓ List opened — print or save as PDF from the new tab.</div>}
+        <div style={{marginTop:16}}>
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:13,fontWeight:600,marginBottom:8}}>Items Needing Restock</div>
+          {low.length===0?<div style={{fontSize:13,color:"#357A52"}}>✓ All items are well-stocked!</div>:
+          low.map(i=><div key={i.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid var(--border)"}}>
+            <div><div style={{fontSize:13,fontWeight:500}}>{i.name}</div><div style={{fontSize:11.5,color:"var(--muted)"}}>Min: {i.minStock||3} {i.unit}</div></div>
+            <Badge color={i.stock===0?"red":"gold"}>{i.stock===0?"OUT":i.stock+" "+i.unit}</Badge>
+          </div>)}
+        </div>
       </Card>
-
       <Card>
-        <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:14}}>Full Inventory Status</div>
-        <div style={{overflowY:"auto",maxHeight:480}}>
-          {inventory.map((i,idx)=>{
-            const pct=i.minStock>0?Math.min(100,(i.stock/((i.minStock||3)*3))*100):100
-            return <div key={i.id} style={{marginBottom:10}}>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:12}}>Full Inventory Status</div>
+        <div style={{overflowY:"auto",maxHeight:450}}>
+          {inventory.map((i)=>{
+            const max=(i.minStock||3)*4;const pct=Math.min(100,(i.stock/max)*100)
+            return <div key={i.id} style={{marginBottom:8}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
                 <span style={{fontSize:12.5,fontWeight:500}}>{i.name}</span>
-                <span style={{fontSize:12,color:i.stock<=(i.minStock||3)?"#B03A2E":"var(--muted)"}}>{i.stock} {i.unit}</span>
+                <span style={{fontSize:11.5,color:i.stock<=(i.minStock||3)?"#B03A2E":"var(--muted)"}}>{i.stock} {i.unit}</span>
               </div>
-              <div style={{height:5,background:"var(--border)",borderRadius:2}}>
-                <div style={{height:"100%",width:`${pct}%`,background:pct<30?"#B03A2E":pct<60?"var(--gold)":"#357A52",borderRadius:2,transition:"width 0.3s"}}/>
-              </div>
+              <div style={{height:4,background:"var(--border)",borderRadius:2}}><div style={{height:"100%",width:`${pct}%`,background:pct<25?"#B03A2E":pct<60?"var(--gold)":"#357A52",borderRadius:2,transition:"width 0.3s"}}/></div>
             </div>
           })}
         </div>
@@ -978,170 +1187,266 @@ function ShoppingList({inventory,company}){
   </div>
 }
 
-// ══════════════════════════════════════════════════════════════
-//  INVOICE GENERATOR
-// ══════════════════════════════════════════════════════════════
-function InvoiceGenerator({productions,company,prefillProd,setPrefillProd}){
-  const [selectedProdId,setSelectedProdId]=useState(prefillProd?.id||"")
+// ═══════════════════════════════════════════════════════════
+//  INVOICES
+// ═══════════════════════════════════════════════════════════
+function Invoices({productions,company,prefillProd,setPrefillProd}){
+  const [selProdId,setSelProdId]=useState(prefillProd?.id||"")
   const [clientPhone,setClientPhone]=useState(prefillProd?.clientPhone||"")
   const [clientEmail,setClientEmail]=useState(prefillProd?.clientEmail||"")
   const [clientAddress,setClientAddress]=useState("")
   const [dueDate,setDueDate]=useState("")
-  const [notes,setNotes]=useState("Thank you for your business!")
-  const [invoiceNo]=useState(`INV-${Date.now().toString().slice(-6)}`)
-  const [saved,setSaved]=useState(false)
+  const [notes,setNotes]=useState(company.invoiceFooter||"Thank you for your business!")
+  const [done,setDone]=useState(false)
+  const [invNo]=useState(`INV-${Date.now().toString().slice(-6)}`)
 
-  useEffect(()=>{if(prefillProd){setSelectedProdId(prefillProd.id);setClientPhone(prefillProd.clientPhone||"");setClientEmail(prefillProd.clientEmail||"")}return()=>setPrefillProd(null)},[])
+  useEffect(()=>{if(prefillProd){setSelProdId(prefillProd.id);setClientPhone(prefillProd.clientPhone||"");setClientEmail(prefillProd.clientEmail||"")}return()=>setPrefillProd&&setPrefillProd(null)},[])
 
-  const prod=productions.find(p=>p.id===selectedProdId)
+  const prod=productions.find(p=>p.id===selProdId)
 
-  const generateInvoice=()=>{
+  const gen=()=>{
     if(!prod)return
     const w=window.open("","_blank")
-    const deliveryLine=prod.deliveryCost>0?`<tr><td style="padding:10px;border-bottom:1px solid #E0D3BB">Delivery</td><td style="padding:10px;border-bottom:1px solid #E0D3BB;text-align:right">—</td><td style="padding:10px;border-bottom:1px solid #E0D3BB;text-align:right">1</td><td style="padding:10px;border-bottom:1px solid #E0D3BB;text-align:right">₦${Math.round(prod.deliveryCost||0).toLocaleString()}</td></tr>`:"";
-    w.document.write(`<!DOCTYPE html><html><head><title>Invoice ${invoiceNo}</title><style>
-      *{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;color:#291608;padding:40px}
-      .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px}
-      .company-name{font-size:24px;font-weight:bold;color:${company.primaryColor||"#C8912A"}}
-      .invoice-title{font-size:32px;font-weight:bold;color:#EDE5D6;text-align:right}
-      .invoice-no{font-size:14px;color:#888;text-align:right;margin-top:4px}
-      .section{margin-bottom:30px}.section-title{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:8px;font-weight:bold}
-      .grid{display:grid;grid-template-columns:1fr 1fr;gap:30px}
-      table{width:100%;border-collapse:collapse;margin:16px 0}
-      thead{background:#291608;color:white}th{padding:12px 10px;text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.8px}
-      td{padding:10px;border-bottom:1px solid #E0D3BB;font-size:13px}
-      .total-section{display:flex;justify-content:flex-end;margin-top:16px}
-      .total-box{width:280px}.total-row{display:flex;justify-content:space-between;padding:8px 0;font-size:13px;border-bottom:1px solid #E0D3BB}
-      .total-final{display:flex;justify-content:space-between;padding:12px 14px;background:${company.primaryColor||"#C8912A"};color:white;border-radius:8px;margin-top:8px;font-size:15px;font-weight:bold}
-      .footer{margin-top:50px;padding-top:20px;border-top:2px solid #EDE5D6;display:flex;justify-content:space-between;font-size:12px;color:#888}
-      .badge{display:inline-block;background:#E5F4EC;color:#2D7A50;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:bold}
-      @media print{button{display:none}}
-    </style></head><body>
-      <div class="header">
-        <div>
-          ${company.logo?`<img src="${company.logo}" style="height:60px;margin-bottom:10px;display:block" alt="logo"/>`:""}
-          <div class="company-name">${company.name||"My Bakery"}</div>
-          ${company.tagline?`<div style="font-size:13px;color:#888;margin-top:3px">${company.tagline}</div>`:""}
-          ${company.address?`<div style="font-size:12px;color:#888;margin-top:6px">${company.address}</div>`:""}
-          ${company.phone?`<div style="font-size:12px;color:#888">${company.phone}</div>`:""}
-          ${company.email?`<div style="font-size:12px;color:#888">${company.email}</div>`:""}
+    w.document.write(`<!DOCTYPE html><html><head><title>Invoice ${invNo}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;color:#291608;padding:40px;max-width:700px;margin:0 auto}.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px}.cn{font-size:22px;font-weight:bold;color:${company.primaryColor||"#C8912A"}}.it{font-size:28px;font-weight:bold;color:#EDE5D6;text-align:right}.in{font-size:13px;color:#888;text-align:right;margin-top:4px}.g2{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-bottom:28px}.sl{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:6px;font-weight:bold}table{width:100%;border-collapse:collapse;margin:14px 0}th{background:#291608;color:white;padding:10px;text-align:left;font-size:11px;text-transform:uppercase}td{padding:10px;border-bottom:1px solid #E0D3BB;font-size:13px}.tb{width:260px;margin-left:auto;margin-top:14px}.tr{display:flex;justify-content:space-between;padding:7px 0;font-size:13px;border-bottom:1px solid #E0D3BB}.tf{display:flex;justify-content:space-between;padding:12px 14px;background:${company.primaryColor||"#C8912A"};color:white;border-radius:8px;margin-top:8px;font-size:14px;font-weight:bold}.ftr{margin-top:40px;padding-top:16px;border-top:2px solid #EDE5D6;font-size:12px;color:#888;line-height:1.7}@media print{button{display:none}}</style></head><body>
+      <div class="hdr">
+        <div>${company.logo?`<img src="${company.logo}" style="height:55px;display:block;margin-bottom:8px"/>`:""}
+        <div class="cn">${company.name||"Bakery"}</div>
+        ${company.tagline?`<div style="font-size:12px;color:#888;margin-top:2px">${company.tagline}</div>`:""}
+        ${company.address?`<div style="font-size:12px;color:#888;margin-top:6px">${company.address}</div>`:""}
+        ${company.phone?`<div style="font-size:12px;color:#888">${company.phone}</div>`:""}
+        ${company.email?`<div style="font-size:12px;color:#888">${company.email}</div>`:""}
         </div>
-        <div>
-          <div class="invoice-title">INVOICE</div>
-          <div class="invoice-no">${invoiceNo}</div>
-          <div style="margin-top:16px;text-align:right">
-            <div style="font-size:12px;color:#888">Issue Date: <strong>${today()}</strong></div>
-            ${dueDate?`<div style="font-size:12px;color:#888;margin-top:4px">Due Date: <strong>${dueDate}</strong></div>`:""}
-            <div style="margin-top:8px"><span class="badge">${prod.status==="delivered"?"DELIVERED":"PENDING"}</span></div>
-          </div>
+        <div><div class="it">INVOICE</div><div class="in">${invNo}</div><div style="margin-top:14px;text-align:right;font-size:12px;color:#888">
+        Issue Date: <strong>${today()}</strong><br>${dueDate?`Due Date: <strong>${dueDate}</strong><br>`:""}
+        Status: <strong style="color:${prod.status==="delivered"?"#357A52":"#C8912A"}">${prod.status.toUpperCase()}</strong></div></div></div>
+      <div class="g2">
+        <div><div class="sl">Bill To</div><div style="font-size:16px;font-weight:bold">${prod.client}</div>
+        ${clientPhone?`<div style="font-size:13px;color:#888;margin-top:4px">${clientPhone}</div>`:""}
+        ${clientEmail?`<div style="font-size:13px;color:#888">${clientEmail}</div>`:""}
+        ${clientAddress?`<div style="font-size:13px;color:#888">${clientAddress}</div>`:""}
         </div>
+        <div><div class="sl">Order Details</div>
+        <div style="font-size:13px">Order: <strong>${prod.orderDate||""}</strong></div>
+        <div style="font-size:13px;margin-top:3px">Delivery: <strong>${prod.deliveryDate||""}</strong></div>
+        <div style="font-size:13px;margin-top:3px">Payment: <strong style="text-transform:capitalize">${prod.paymentType}</strong></div>
+        </div></div>
+      <table><thead><tr><th>Description</th><th>Details</th><th style="text-align:right">Amount</th></tr></thead><tbody>
+        <tr><td><strong>${prod.size} ${prod.covering} Cake</strong>${prod.notes?`<br><span style="font-size:12px;color:#888">${prod.notes}</span>`:""}</td>
+        <td style="font-size:12px;color:#888">${prod.flavors||""}${prod.decorations?` · ${prod.decorations.split(",").map(id=>{const d=DECORATION_ITEMS.find(x=>x.id===id);return d?.name}).filter(Boolean).join(", ")}`:""}</td>
+        <td style="text-align:right">₦${Math.round(prod.salePrice||0).toLocaleString()}</td></tr>
+        ${prod.deliveryCost>0?`<tr><td>Delivery</td><td></td><td style="text-align:right">₦${Math.round(prod.deliveryCost).toLocaleString()}</td></tr>`:""}
+      </tbody></table>
+      <div class="tb">
+        <div class="tr"><span>Subtotal</span><span>₦${Math.round(prod.salePrice||0).toLocaleString()}</span></div>
+        ${prod.deliveryCost>0?`<div class="tr"><span>Delivery</span><span>₦${Math.round(prod.deliveryCost).toLocaleString()}</span></div>`:""}
+        <div class="tf"><span>TOTAL DUE</span><span>₦${Math.round((prod.salePrice||0)+(prod.deliveryCost||0)).toLocaleString()}</span></div>
       </div>
-      <div class="grid" style="margin-bottom:30px">
-        <div><div class="section-title">Bill To</div>
-          <div style="font-size:16px;font-weight:bold">${prod.client||""}</div>
-          ${clientPhone?`<div style="font-size:13px;color:#888;margin-top:4px">${clientPhone}</div>`:""}
-          ${clientEmail?`<div style="font-size:13px;color:#888">${clientEmail}</div>`:""}
-          ${clientAddress?`<div style="font-size:13px;color:#888">${clientAddress}</div>`:""}
-        </div>
-        <div><div class="section-title">Order Details</div>
-          <div style="font-size:13px">Order Date: <strong>${prod.orderDate||""}</strong></div>
-          <div style="font-size:13px;margin-top:4px">Delivery Date: <strong>${prod.deliveryDate||""}</strong></div>
-          <div style="font-size:13px;margin-top:4px">Payment Type: <strong style="text-transform:capitalize">${prod.paymentType||"full"}</strong></div>
-        </div>
-      </div>
-      <div class="section-title">Items</div>
-      <table>
-        <thead><tr><th>Description</th><th>Details</th><th>Qty</th><th style="text-align:right">Amount</th></tr></thead>
-        <tbody>
-          <tr><td style="padding:10px;border-bottom:1px solid #E0D3BB"><strong>${prod.size} ${prod.covering} Cake</strong>${prod.notes?`<br><span style="font-size:12px;color:#888">${prod.notes}</span>`:""}</td><td style="padding:10px;border-bottom:1px solid #E0D3BB;font-size:12px;color:#888">${prod.flavors||""} · ${prod.layers} layers</td><td style="padding:10px;border-bottom:1px solid #E0D3BB;text-align:right">1</td><td style="padding:10px;border-bottom:1px solid #E0D3BB;text-align:right">₦${Math.round(prod.salePrice||0).toLocaleString()}</td></tr>
-          ${deliveryLine}
-        </tbody>
-      </table>
-      <div class="total-section">
-        <div class="total-box">
-          <div class="total-row"><span>Subtotal</span><span>₦${Math.round((prod.salePrice||0)).toLocaleString()}</span></div>
-          ${prod.deliveryCost?`<div class="total-row"><span>Delivery</span><span>₦${Math.round(prod.deliveryCost).toLocaleString()}</span></div>`:""}
-          <div class="total-final"><span>TOTAL DUE</span><span>₦${Math.round((prod.salePrice||0)+(prod.deliveryCost||0)).toLocaleString()}</span></div>
-        </div>
-      </div>
-      ${notes?`<div style="margin-top:30px;padding:16px;background:#F5F0E4;border-radius:8px;font-size:13px;color:#8C6E52"><strong>Notes:</strong> ${notes}</div>`:""}
-      <div class="footer"><div>Thank you for choosing ${company.name||"us"}!</div><div>LayerLedger · ${invoiceNo}</div></div>
-      <script>window.print()</script>
-    </body></html>`)
-    w.document.close()
-    setSaved(true)
+      ${notes?`<div style="margin-top:28px;padding:14px;background:#F5F0E4;border-radius:8px;font-size:13px;color:#8C6E52">${notes}</div>`:""}
+      <div class="ftr"><div>${company.name||"Bakery"} · ${company.phone||""} · ${company.email||""}</div></div>
+      <script>window.print()</script></body></html>`)
+    w.document.close();setDone(true)
   }
 
   return <div>
-    <SHead title="Invoice Generator" sub="Create a professional invoice for any production order."/>
+    <SHead title="Invoice Generator" sub="Create a professional invoice for any order."/>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
       <Card>
         <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:14}}>Invoice Details</div>
-        <div style={{padding:"8px 12px",background:"#F5F0E4",borderRadius:8,fontSize:12.5,marginBottom:14,color:"var(--muted)"}}>Invoice #{invoiceNo}</div>
-        <Sel label="Select Production Order *" value={selectedProdId} onChange={setSelectedProdId} options={productions.map(p=>({value:p.id,label:`${p.client} — ${p.deliveryDate} — ${p.size} ${p.covering}`}))}/>
-        {prod&&<div style={{padding:"10px 12px",background:"#EEF8F3",borderRadius:8,fontSize:12.5,marginBottom:12,border:"1px solid #C2E0CF"}}>
-          <div style={{fontWeight:600}}>{prod.size} · {prod.covering}</div>
-          <div style={{color:"var(--muted)",marginTop:2}}>{prod.flavors} · {prod.layers} layers</div>
-          <div style={{marginTop:4}}>Sale: <strong style={{color:"var(--gold)"}}>{fmt(prod.salePrice)}</strong>{prod.deliveryCost?` + ${fmt(prod.deliveryCost)} delivery`:""}</div>
-        </div>}
+        <div style={{padding:"7px 12px",background:"#F5F0E4",borderRadius:8,fontSize:12.5,marginBottom:14,color:"var(--muted)"}}>Invoice #{invNo}</div>
+        <Sel label="Production Order *" value={selProdId} onChange={setSelProdId} options={productions.map(p=>({value:p.id,label:`${p.client} — ${p.deliveryDate} — ${p.size} ${p.covering}`}))}/>
+        {prod&&<div style={{padding:"9px 12px",background:"#EEF8F3",borderRadius:8,fontSize:12.5,marginBottom:12,border:"1px solid #C2E0CF"}}><div style={{fontWeight:600}}>{prod.size} · {prod.covering}</div><div style={{color:"var(--muted)",marginTop:2}}>{prod.flavors}</div><div style={{marginTop:4}}>Total: <strong style={{color:"var(--gold)"}}>{fmt((prod.salePrice||0)+(prod.deliveryCost||0))}</strong></div></div>}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          <Inp label="Client Phone" value={clientPhone} onChange={setClientPhone} placeholder="+234…"/>
-          <Inp label="Client Email" value={clientEmail} onChange={setClientEmail} placeholder="email@…"/>
+          <Inp label="Client Phone" value={clientPhone} onChange={setClientPhone}/>
+          <Inp label="Client Email" value={clientEmail} onChange={setClientEmail}/>
         </div>
-        <Inp label="Client Address" value={clientAddress} onChange={setClientAddress} placeholder="Street, City"/>
+        <Inp label="Client Address" value={clientAddress} onChange={setClientAddress}/>
         <Inp label="Due Date" type="date" value={dueDate} onChange={setDueDate}/>
-        <Inp label="Footer Notes" value={notes} onChange={setNotes} placeholder="Payment terms, thank you note…"/>
-        <Btn full onClick={generateInvoice} disabled={!prod}>📄 Generate & Print Invoice</Btn>
-        {saved&&<div style={{marginTop:8,fontSize:12.5,color:"#357A52"}}>✓ Invoice opened — print or save as PDF from the new tab.</div>}
+        <div style={{marginBottom:11}}>
+          <label style={{fontSize:10.5,color:"var(--muted)",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:0.8,fontWeight:500}}>Footer Note (customizable)</label>
+          <textarea value={notes} onChange={e=>setNotes(e.target.value)} style={{...iSt,minHeight:70,resize:"vertical"}} placeholder="Payment terms, thank you note, bank details…"/>
+        </div>
+        <Btn full onClick={gen} disabled={!prod}>📄 Generate & Print Invoice</Btn>
+        {done&&<div style={{marginTop:8,fontSize:12.5,color:"#357A52"}}>✓ Invoice opened — print or save as PDF.</div>}
       </Card>
       <Card style={{background:"#FFF9EE",borderColor:"var(--gold)"}}>
-        <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:12}}>Invoice Preview</div>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:12}}>Preview</div>
         {prod?<div>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:16}}>
-            <div><div style={{fontWeight:700,fontSize:15,color:"var(--gold)"}}>{company.name||"My Bakery"}</div>{company.tagline&&<div style={{fontSize:12,color:"var(--muted)"}}>{company.tagline}</div>}</div>
-            <div style={{textAlign:"right"}}><div style={{fontSize:20,fontWeight:700,color:"var(--border)"}}>INVOICE</div><div style={{fontSize:12,color:"var(--muted)"}}>{invoiceNo}</div></div>
+            <div><div style={{fontWeight:700,fontSize:15,color:"var(--gold)"}}>{company.name}</div>{company.tagline&&<div style={{fontSize:11.5,color:"var(--muted)"}}>{company.tagline}</div>}</div>
+            <div style={{textAlign:"right"}}><div style={{fontSize:18,fontWeight:700,color:"var(--border)"}}>INVOICE</div><div style={{fontSize:11.5,color:"var(--muted)"}}>{invNo}</div></div>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
             <div><div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:0.8,marginBottom:4}}>Bill To</div><div style={{fontWeight:600,fontSize:13}}>{prod.client}</div>{clientPhone&&<div style={{fontSize:12,color:"var(--muted)"}}>{clientPhone}</div>}</div>
-            <div><div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:0.8,marginBottom:4}}>Order</div><div style={{fontSize:12}}>Order: {prod.orderDate}</div><div style={{fontSize:12}}>Delivery: {prod.deliveryDate}</div></div>
+            <div><div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:0.8,marginBottom:4}}>Order</div><div style={{fontSize:12}}>Delivery: {prod.deliveryDate}</div></div>
           </div>
           <div style={{background:"var(--panel)",borderRadius:8,padding:10}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:6,fontSize:12.5}}><span style={{fontWeight:500}}>{prod.size} {prod.covering} Cake</span><span style={{fontWeight:600,color:"var(--gold)"}}>{fmt(prod.salePrice)}</span></div>
-            <div style={{fontSize:12,color:"var(--muted)",marginBottom:6}}>{prod.flavors} · {prod.layers} layers</div>
-            {prod.deliveryCost>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,marginBottom:6}}><span>Delivery</span><span>{fmt(prod.deliveryCost)}</span></div>}
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:5,fontSize:12.5}}><span style={{fontWeight:500}}>{prod.size} {prod.covering} Cake</span><span style={{fontWeight:600,color:"var(--gold)"}}>{fmt(prod.salePrice)}</span></div>
+            <div style={{fontSize:11.5,color:"var(--muted)",marginBottom:5}}>{prod.flavors}</div>
+            {prod.deliveryCost>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,marginBottom:5}}><span>Delivery</span><span>{fmt(prod.deliveryCost)}</span></div>}
             <div style={{display:"flex",justifyContent:"space-between",fontWeight:700,fontSize:14,paddingTop:8,borderTop:"1px solid var(--border)"}}><span>TOTAL</span><span style={{color:"var(--gold)"}}>{fmt((prod.salePrice||0)+(prod.deliveryCost||0))}</span></div>
           </div>
-          {notes&&<div style={{marginTop:10,fontSize:12,color:"var(--muted)",fontStyle:"italic"}}>{notes}</div>}
-        </div>:<div style={{textAlign:"center",padding:40,color:"var(--muted)"}}>Select a production order to preview the invoice</div>}
+          {notes&&<div style={{marginTop:10,fontSize:11.5,color:"var(--muted)",fontStyle:"italic",lineHeight:1.5}}>{notes}</div>}
+        </div>:<div style={{textAlign:"center",padding:36,color:"var(--muted)"}}>Select an order to preview the invoice</div>}
       </Card>
     </div>
   </div>
 }
 
-// ══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+//  SETTINGS (separate page)
+// ═══════════════════════════════════════════════════════════
+function Settings({company,setCompany,settings,setSettings,users,setUsers}){
+  const [tab,setTab]=useState("company")
+  const logoRef=useRef()
+  const [newUser,setNewUser]=useState({name:"",role:"production",pin:""})
+  const [userMsg,setUserMsg]=useState("")
+
+  const co=(field,val)=>{const u={...company,[field]:val};setCompany(u);saveCompany(u)}
+  const st=(field,val)=>{const u={...settings,[field]:val};setSettings(u);saveSetting(field,val)}
+
+  const handleLogo=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>co("logo",ev.target.result);r.readAsDataURL(f)}
+
+  const addUser=()=>{
+    if(!newUser.name||!newUser.pin)return setUserMsg("Name and PIN required")
+    if(newUser.pin.length<4)return setUserMsg("PIN must be at least 4 digits")
+    const updated=[...users,{...newUser,id:uid(),active:true}]
+    setUsers(updated);saveUsers(updated);setNewUser({name:"",role:"production",pin:""});setUserMsg("✓ User added")
+  }
+  const toggleUser=(id)=>{const u=users.map(x=>x.id===id?{...x,active:!x.active}:x);setUsers(u);saveUsers(u)}
+  const deleteUser=(id)=>{if(id==="owner")return;const u=users.filter(x=>x.id!==id);setUsers(u);saveUsers(u)}
+  const updatePin=(id,pin)=>{const u=users.map(x=>x.id===id?{...x,pin}:x);setUsers(u);saveUsers(u)}
+
+  return <div>
+    <SHead title="Settings" sub="Company profile, pricing, users, and access control."/>
+    <Tabs tabs={[{v:"company",l:"Company"},{v:"pricing",l:"Pricing & Margins"},{v:"users",l:"Users & Access"}]} active={tab} onChange={setTab}/>
+
+    {tab==="company"&&<div style={{maxWidth:540}}>
+      <Card>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:14}}>Company Profile</div>
+        <div style={{display:"flex",gap:14,alignItems:"flex-start",marginBottom:14}}>
+          <div onClick={()=>logoRef.current?.click()} style={{width:80,height:80,borderRadius:10,border:"2px dashed var(--border)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",background:"#FAF7F0",flexShrink:0,overflow:"hidden"}}>
+            {company.logo?<img src={company.logo} alt="logo" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{textAlign:"center",fontSize:11,color:"var(--muted)"}}>Upload<br/>Logo</div>}
+          </div>
+          <input ref={logoRef} type="file" accept="image/*" onChange={handleLogo} style={{display:"none"}}/>
+          <div style={{flex:1}}>
+            <Inp label="Business Name" value={company.name} onChange={v=>co("name",v)}/>
+            <Inp label="Tagline" value={company.tagline||""} onChange={v=>co("tagline",v)}/>
+          </div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <Inp label="Phone" value={company.phone||""} onChange={v=>co("phone",v)}/>
+          <Inp label="Email" value={company.email||""} onChange={v=>co("email",v)}/>
+        </div>
+        <Inp label="Address" value={company.address||""} onChange={v=>co("address",v)}/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:4}}>
+          <div><label style={{fontSize:10.5,color:"var(--muted)",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>Primary Color</label><div style={{display:"flex",gap:8,alignItems:"center"}}><input type="color" value={company.primaryColor||"#C8912A"} onChange={e=>co("primaryColor",e.target.value)} style={{width:38,height:34,borderRadius:6,border:"1px solid var(--border)",cursor:"pointer",padding:2}}/><span style={{fontSize:12,color:"var(--muted)"}}>{company.primaryColor}</span></div></div>
+          <div><label style={{fontSize:10.5,color:"var(--muted)",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:0.8}}>Sidebar Color</label><div style={{display:"flex",gap:8,alignItems:"center"}}><input type="color" value={company.sidebarColor||"#140801"} onChange={e=>co("sidebarColor",e.target.value)} style={{width:38,height:34,borderRadius:6,border:"1px solid var(--border)",cursor:"pointer",padding:2}}/><span style={{fontSize:12,color:"var(--muted)"}}>{company.sidebarColor}</span></div></div>
+        </div>
+      </Card>
+      <Card style={{marginTop:14}}>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:12}}>Invoice Footer Note</div>
+        <p style={{fontSize:12.5,color:"var(--muted)",marginTop:0,marginBottom:10}}>This text appears at the bottom of every invoice. Use it for payment terms, bank details, or a thank you message.</p>
+        <textarea value={company.invoiceFooter||""} onChange={e=>co("invoiceFooter",e.target.value)} placeholder="e.g. Thank you! Payment: Fayvouree Cakes · GTBank · 0126581390. All orders confirmed on payment of 50% deposit." style={{...iSt,minHeight:90,resize:"vertical"}}/>
+      </Card>
+    </div>}
+
+    {tab==="pricing"&&<div style={{maxWidth:520}}>
+      <Card style={{marginBottom:14}}>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:12}}>Accessory & Extra Cost Margin</div>
+        <p style={{fontSize:12.5,color:"var(--muted)",marginTop:0,lineHeight:1.7}}>Added to ingredient costs to cover boxes, boards, ribbons, baking paper, electricity, and any accessories not directly in a recipe.</p>
+        <div style={{display:"flex",alignItems:"center",gap:14,margin:"12px 0"}}>
+          <input type="range" min={0} max={30} value={settings.accessoryPct||10} onChange={e=>st("accessoryPct",+e.target.value)} style={{flex:1,accentColor:"var(--gold)"}}/>
+          <div style={{fontSize:22,fontWeight:700,color:"var(--gold)",minWidth:46}}>{settings.accessoryPct||10}%</div>
+        </div>
+        <div style={{fontSize:12.5,color:"var(--muted)"}}>Every cake cost × <strong style={{color:"var(--text)"}}>{(1+(settings.accessoryPct||10)/100).toFixed(2)}</strong></div>
+      </Card>
+      <Card style={{marginBottom:14}}>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:12}}>Profit Margin Target</div>
+        <p style={{fontSize:12.5,color:"var(--muted)",marginTop:0,lineHeight:1.7}}>Your target profit percentage. Used to suggest selling prices when you log a new production.</p>
+        <div style={{display:"flex",alignItems:"center",gap:14,margin:"12px 0"}}>
+          <input type="range" min={10} max={100} value={settings.profitPct||40} onChange={e=>st("profitPct",+e.target.value)} style={{flex:1,accentColor:"var(--gold)"}}/>
+          <div style={{fontSize:22,fontWeight:700,color:"var(--gold)",minWidth:46}}>{settings.profitPct||40}%</div>
+        </div>
+        <div style={{padding:"8px 12px",background:"#F5F0E4",borderRadius:8,fontSize:12.5,color:"var(--muted)"}}>If a cake costs ₦15,000 to make, the suggested price will be <strong style={{color:"var(--text)"}}>{fmt(15000*(1+(settings.profitPct||40)/100))}</strong></div>
+      </Card>
+      <Card>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:12}}>External Services / Printout Costs</div>
+        <p style={{fontSize:12.5,color:"var(--muted)",marginTop:0,lineHeight:1.7}}>Track costs for external services like printouts, edible prints, photography, or any work done by other businesses. Add these as manual expenses in the Expenses tab, or include them in the accessory margin above.</p>
+        <div style={{padding:"8px 12px",background:"#FFF9EE",borderRadius:8,fontSize:12.5,color:"#9A6C1A"}}>💡 Tip: For recurring printout costs, increase the accessory margin by 2-3%. For one-off custom work, log it as a manual expense on that date.</div>
+      </Card>
+    </div>}
+
+    {tab==="users"&&<div>
+      <div style={{marginBottom:14,padding:"10px 14px",background:"#EEF8F3",borderRadius:8,fontSize:13,color:"#2D7A50",border:"1px solid #C2E0CF"}}>
+        <strong>Access Levels:</strong> Owner = full access. Production = can log cakes & scan receipts only (no prices visible, no delete). Customer Service = can view orders & create invoices only.
+      </div>
+      {userMsg&&<Alert msg={userMsg} color={userMsg.startsWith("✓")?"green":"red"} onClose={()=>setUserMsg("")}/>}
+      <Card style={{marginBottom:14,background:"#FFF9EE",borderColor:"var(--gold)"}}>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:12}}>Add New User</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+          <Inp label="Full Name *" value={newUser.name} onChange={v=>setNewUser(p=>({...p,name:v}))} placeholder="e.g. Ngozi Baker"/>
+          <Sel label="Role *" value={newUser.role} onChange={v=>setNewUser(p=>({...p,role:v}))} options={Object.entries(ROLES).map(([k,v])=>({value:k,label:v}))}/>
+          <Inp label="PIN * (min 4 digits)" value={newUser.pin} onChange={v=>setNewUser(p=>({...p,pin:v}))} placeholder="e.g. 5678" type="number"/>
+        </div>
+        <Btn onClick={addUser}>Add User</Btn>
+      </Card>
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",background:"var(--panel)",borderRadius:10,overflow:"hidden",border:"1px solid var(--border)"}}>
+          <TH cols={["User","Role","PIN","Status","Actions"]}/>
+          <tbody>{users.map((u,i)=>{
+            const [editPin,setEditPin]=useState(u.pin)
+            return <TR2 key={u.id} i={i} row={[
+              <span style={{fontWeight:500}}>{u.name}</span>,
+              <Badge color={u.role==="owner"?"gold":u.role==="production"?"blue":"green"}>{ROLES[u.role]?.split(" ")[0]}</Badge>,
+              <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                <input type="password" value={editPin} onChange={e=>setEditPin(e.target.value)} style={{...iSt,width:80,padding:"4px 6px",fontSize:12}}/>
+                {editPin!==u.pin&&<Btn small variant="success" onClick={()=>updatePin(u.id,editPin)}>Save</Btn>}
+              </div>,
+              <Badge color={u.active?"green":"gray"}>{u.active?"Active":"Inactive"}</Badge>,
+              <div style={{display:"flex",gap:4}}>
+                <Btn small variant="ghost" onClick={()=>toggleUser(u.id)}>{u.active?"Deactivate":"Activate"}</Btn>
+                {u.id!=="owner"&&<Btn small variant="danger" onClick={()=>deleteUser(u.id)}>×</Btn>}
+              </div>,
+            ]}/>
+          })}</tbody>
+        </table>
+      </div>
+    </div>}
+  </div>
+}
+
+// ═══════════════════════════════════════════════════════════
 //  ROOT APP
-// ══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
 export default function App(){
+  const [currentUser, setCurrentUser] = useState(null)
   const [view,setView]=useState("dashboard")
   const [inventory,setInventory]=useState(DEFAULT_INV)
+  const [recipes,setRecipes]=useState(DEFAULT_RECIPES)
   const [productions,setProductions]=useState([])
   const [transactions,setTransactions]=useState([])
   const [expenses,setExpenses]=useState([])
-  const [accessoryPct,setAccessoryPct]=useState(10)
-  const [company,setCompany]=useState(loadCompanySettings())
+  const [company,setCompany]=useState(loadCompany())
+  const [settings,setSettings]=useState({accessoryPct:loadSetting("accessoryPct",10),profitPct:loadSetting("profitPct",40)})
+  const [users,setUsers]=useState(loadUsers())
   const [prefillProd,setPrefillProd]=useState(null)
   const [loading,setLoading]=useState(true)
   const [sidebarOpen,setSidebarOpen]=useState(false)
-  const isMobile=typeof window!=="undefined"&&window.innerWidth<768
+  const [isMobile,setIsMobile]=useState(window.innerWidth<768)
+
+  useEffect(()=>{
+    const handler=()=>setIsMobile(window.innerWidth<768)
+    window.addEventListener("resize",handler);return()=>window.removeEventListener("resize",handler)
+  },[])
 
   useEffect(()=>{
     async function init(){
       setLoading(true)
       const [inv,prods,txns]=await Promise.all([loadInventory(DEFAULT_INV),loadProductions([]),loadTransactions([])])
       setInventory(inv);setProductions(prods);setTransactions(txns)
-      setExpenses(loadExpenses())
-      setAccessoryPct(loadSetting("accessoryPct",10))
-      setCompany(loadCompanySettings())
+      setExpenses(loadExpenses());setUsers(loadUsers());setCompany(loadCompany())
+      const saved=loadRecipes();if(saved)setRecipes(saved)
+      setSettings({accessoryPct:loadSetting("accessoryPct",10),profitPct:loadSetting("profitPct",40)})
       setLoading(false)
     }
     init()
@@ -1150,77 +1455,88 @@ export default function App(){
   const gold=company.primaryColor||"#C8912A"
   const sidebar=company.sidebarColor||"#140801"
 
+  const role=currentUser?.role||"owner"
   const nav=[
-    {id:"dashboard",label:"Dashboard",icon:"◈"},
-    {id:"setup",label:"Master List",icon:"⚙"},
-    {id:"production",label:"New Production",icon:"🎂"},
-    {id:"receipts",label:"Receipt Scanner",icon:"🧾"},
-    {id:"expenses",label:"Expenses",icon:"💸"},
-    {id:"records",label:"Records",icon:"≡"},
-    {id:"bank",label:"Bank Import",icon:"⊞"},
-    {id:"reports",label:"Reports",icon:"◎"},
-    {id:"shopping",label:"Shopping List",icon:"🛒"},
-    {id:"invoices",label:"Invoices",icon:"📄"},
-  ]
+    {id:"dashboard",label:"Dashboard",icon:"◈",roles:["owner","production","customer_service"]},
+    {id:"masterlist",label:"Master List",icon:"⚙",roles:["owner","production"]},
+    {id:"production",label:"New Production",icon:"🎂",roles:["owner","production"]},
+    {id:"receipts",label:"Receipt Scanner",icon:"🧾",roles:["owner","production"]},
+    {id:"expenses",label:"Expenses",icon:"💸",roles:["owner"]},
+    {id:"records",label:"Records",icon:"≡",roles:["owner","customer_service"]},
+    {id:"bank",label:"Bank Import",icon:"⊞",roles:["owner"]},
+    {id:"reports",label:"Reports",icon:"◎",roles:["owner"]},
+    {id:"shopping",label:"Shopping List",icon:"🛒",roles:["owner","production"]},
+    {id:"invoices",label:"Invoices",icon:"📄",roles:["owner","customer_service"]},
+    {id:"settings",label:"Settings",icon:"⚙",roles:["owner"]},
+  ].filter(n=>n.roles.includes(role))
 
   const goTo=(id)=>{setView(id);setSidebarOpen(false)}
 
+  if(!currentUser){
+    return <>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500&display=swap');*{box-sizing:border-box}body{margin:0}:root{--gold:${gold};--sidebar:${sidebar};--bg:#F4EEE4;--panel:#FDFAF4;--text:#291608;--muted:#8C6E52;--border:#E0D3BB}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <Login onLogin={(u)=>{setCurrentUser(u);saveSetting("lastUser",u.id)}}/>
+    </>
+  }
+
+  const SidebarContent = () => <>
+    <div style={{padding:"18px 16px 14px",borderBottom:"1px solid rgba(200,145,42,0.2)",display:"flex",alignItems:"center",gap:10}}>
+      {company.logo&&<img src={company.logo} alt="logo" style={{width:30,height:30,borderRadius:6,objectFit:"cover",flexShrink:0}}/>}
+      <div><div style={{fontFamily:"'Playfair Display',serif",fontSize:16,color:gold,fontWeight:700,lineHeight:1.2}}>{company.name||"LayerLedger"}</div><div style={{fontSize:9,color:"#7B5A3A",textTransform:"uppercase",letterSpacing:2,marginTop:1}}>Bakery Books</div></div>
+    </div>
+    <div style={{flex:1,paddingTop:8,overflowY:"auto"}}>
+      {nav.map(n=><div key={n.id} onClick={()=>goTo(n.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 16px",cursor:"pointer",fontSize:13,fontWeight:view===n.id?500:400,color:view===n.id?gold:"#8B6B4A",background:view===n.id?"rgba(200,145,42,0.1)":"transparent",borderLeft:`2px solid ${view===n.id?gold:"transparent"}`,transition:"all 0.15s"}}><span style={{fontSize:14}}>{n.icon}</span>{n.label}</div>)}
+    </div>
+    <div style={{padding:"10px 16px",borderTop:"1px solid rgba(200,145,42,0.1)"}}>
+      <div style={{fontSize:11.5,color:"#6B4A2A",fontWeight:500}}>{currentUser?.name}</div>
+      <div style={{fontSize:10.5,color:"#3D2010",marginTop:1,display:"flex",justifyContent:"space-between"}}>
+        <span>LayerLedger v4.0</span>
+        <span style={{cursor:"pointer",color:gold}} onClick={()=>setCurrentUser(null)}>Logout</span>
+      </div>
+    </div>
+  </>
+
   return <>
     <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
-      *{box-sizing:border-box;}body{margin:0;padding:0;}
-      :root{--gold:${gold};--sidebar:${sidebar};--bg:#F4EEE4;--panel:#FDFAF4;--text:#291608;--muted:#8C6E52;--border:#E0D3BB;}
+      @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500&display=swap');
+      *{box-sizing:border-box}body{margin:0;padding:0}
+      :root{--gold:${gold};--sidebar:${sidebar};--bg:#F4EEE4;--panel:#FDFAF4;--text:#291608;--muted:#8C6E52;--border:#E0D3BB}
       @keyframes spin{to{transform:rotate(360deg)}}
-      @media(max-width:768px){
-        .sidebar{position:fixed!important;z-index:100;transform:translateX(-100%);transition:transform 0.25s ease;}
-        .sidebar.open{transform:translateX(0)!important;}
-        .overlay{display:block!important;}
-        .main-content{padding:16px!important;}
-      }
     `}</style>
-    <div style={{display:"flex",height:"100vh",fontFamily:"'DM Sans',sans-serif",background:"var(--bg)",overflow:"hidden",position:"relative"}}>
+    <div style={{display:"flex",height:"100vh",fontFamily:"'DM Sans',sans-serif",background:"var(--bg)",overflow:"hidden"}}>
 
-      {/* Mobile overlay */}
-      <div className="overlay" onClick={()=>setSidebarOpen(false)} style={{display:"none",position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:99}}/>
+      {/* Desktop sidebar */}
+      {!isMobile&&<div style={{width:200,background:"var(--sidebar)",display:"flex",flexDirection:"column",flexShrink:0,height:"100vh"}}><SidebarContent/></div>}
 
-      {/* SIDEBAR */}
-      <div className={`sidebar${sidebarOpen?" open":""}`} style={{width:210,background:"var(--sidebar)",display:"flex",flexDirection:"column",flexShrink:0,height:"100vh",overflowY:"auto"}}>
-        <div style={{padding:"20px 18px 16px",borderBottom:"1px solid rgba(200,145,42,0.2)",display:"flex",alignItems:"center",gap:10}}>
-          {company.logo&&<img src={company.logo} alt="logo" style={{width:32,height:32,borderRadius:6,objectFit:"cover",flexShrink:0}}/>}
-          <div>
-            <div style={{fontFamily:"'Playfair Display',serif",fontSize:17,color:gold,fontWeight:700,lineHeight:1.2}}>{company.name||"LayerLedger"}</div>
-            <div style={{fontSize:9,color:"#7B5A3A",textTransform:"uppercase",letterSpacing:2,marginTop:1}}>Bakery Books</div>
-          </div>
-        </div>
-        <div style={{flex:1,paddingTop:8}}>
-          {nav.map(n=><div key={n.id} onClick={()=>goTo(n.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 18px",cursor:"pointer",fontSize:13,fontWeight:view===n.id?500:400,color:view===n.id?gold:"#8B6B4A",background:view===n.id?"rgba(200,145,42,0.1)":"transparent",borderLeft:`2px solid ${view===n.id?gold:"transparent"}`,transition:"all 0.15s"}}>
-            <span style={{fontSize:14,flexShrink:0}}>{n.icon}</span><span>{n.label}</span>
-          </div>)}
-        </div>
-        <div style={{padding:"12px 18px",borderTop:"1px solid rgba(200,145,42,0.1)",fontSize:10.5,color:"#3D2010"}}>LayerLedger v3.0</div>
-      </div>
+      {/* Mobile sidebar overlay */}
+      {isMobile&&sidebarOpen&&<div style={{position:"fixed",inset:0,zIndex:200,display:"flex"}}>
+        <div style={{width:220,background:"var(--sidebar)",display:"flex",flexDirection:"column",height:"100%"}}><SidebarContent/></div>
+        <div style={{flex:1,background:"rgba(0,0,0,0.5)"}} onClick={()=>setSidebarOpen(false)}/>
+      </div>}
 
-      {/* MAIN */}
+      {/* Main */}
       <div style={{flex:1,overflow:"auto",display:"flex",flexDirection:"column",minWidth:0}}>
         {/* Mobile header */}
-        <div style={{display:"none",alignItems:"center",gap:12,padding:"12px 16px",background:"var(--sidebar)",position:"sticky",top:0,zIndex:50}} className="mobile-header">
-          <button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{background:"none",border:"none",cursor:"pointer",padding:4,color:gold,fontSize:22}}>☰</button>
-          <div style={{fontFamily:"'Playfair Display',serif",fontSize:16,color:gold,fontWeight:700}}>{company.name||"LayerLedger"}</div>
-        </div>
-        <style>{`@media(max-width:768px){.mobile-header{display:flex!important;}}`}</style>
+        {isMobile&&<div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:"var(--sidebar)",position:"sticky",top:0,zIndex:50,flexShrink:0}}>
+          <button onClick={()=>setSidebarOpen(!sidebarOpen)} style={{background:"none",border:"none",cursor:"pointer",padding:4,color:gold,fontSize:22,lineHeight:1}}>☰</button>
+          {company.logo&&<img src={company.logo} alt="logo" style={{width:26,height:26,borderRadius:5,objectFit:"cover"}}/>}
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,color:gold,fontWeight:700,flex:1}}>{company.name||"LayerLedger"}</div>
+          <div style={{fontSize:11,color:"#6B4A2A"}}>{nav.find(n=>n.id===view)?.label}</div>
+        </div>}
 
-        <div className="main-content" style={{padding:"24px 26px",flex:1}}>
+        <div style={{padding:isMobile?"14px":"24px 26px",flex:1,overflowY:"auto"}}>
           {loading?<Spinner/>:<>
-            {view==="dashboard"  &&<Dashboard productions={productions} inventory={inventory} expenses={expenses} setView={setView}/>}
-            {view==="setup"      &&<Setup inventory={inventory} setInventory={setInventory} accessoryPct={accessoryPct} setAccessoryPct={setAccessoryPct} company={company} setCompany={setCompany}/>}
-            {view==="production" &&<ProductionEntry inventory={inventory} setInventory={setInventory} accessoryPct={accessoryPct} productions={productions} setProductions={setProductions} setView={setView}/>}
+            {view==="dashboard"  &&<Dashboard productions={productions} inventory={inventory} expenses={expenses} setView={setView} user={currentUser}/>}
+            {view==="masterlist" &&<MasterList inventory={inventory} setInventory={setInventory} recipes={recipes} setRecipes={setRecipes} user={currentUser}/>}
+            {view==="production" &&<ProductionEntry inventory={inventory} setInventory={setInventory} recipes={recipes} productions={productions} setProductions={setProductions} settings={settings} setView={setView} user={currentUser}/>}
             {view==="receipts"   &&<ReceiptScanner inventory={inventory} setInventory={setInventory} expenses={expenses} setExpenses={setExpenses}/>}
             {view==="expenses"   &&<Expenses expenses={expenses} setExpenses={setExpenses}/>}
-            {view==="records"    &&<Records productions={productions} setProductions={setProductions} setView={setView} setPrefillProd={setPrefillProd}/>}
+            {view==="records"    &&<Records productions={productions} setProductions={setProductions} setView={setView} setPrefillProd={setPrefillProd} user={currentUser}/>}
             {view==="bank"       &&<BankImport transactions={transactions} setTransactions={setTransactions} productions={productions} expenses={expenses} setExpenses={setExpenses}/>}
             {view==="reports"    &&<Reports productions={productions} transactions={transactions} expenses={expenses} company={company}/>}
             {view==="shopping"   &&<ShoppingList inventory={inventory} company={company}/>}
-            {view==="invoices"   &&<InvoiceGenerator productions={productions} company={company} prefillProd={prefillProd} setPrefillProd={setPrefillProd}/>}
+            {view==="invoices"   &&<Invoices productions={productions} company={company} prefillProd={prefillProd} setPrefillProd={setPrefillProd}/>}
+            {view==="settings"   &&<Settings company={company} setCompany={setCompany} settings={settings} setSettings={setSettings} users={users} setUsers={setUsers}/>}
           </>}
         </div>
       </div>
