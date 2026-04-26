@@ -55,25 +55,24 @@ const DEFAULT_INV = [
   {id:"i45", name:"Wrapping Sheet",            cat:"Packaging",   unit:"pack",  cost:8000,  stock:2,   minStock:1 },
 ]
 
+// Recipes are PER SINGLE LAYER. In production, multiply by number of layers.
 const DEFAULT_RECIPES = [
-  { id:"r1", name:'6" Single Layer Sponge', size:'6"', tiers:1, covering:"buttercream",
-    ing:[{iid:"i1",qty:0.3},{iid:"i2",qty:0.25},{iid:"i5",qty:0.2},{iid:"i7",qty:3},{iid:"i8",qty:0.15},{iid:"i11",qty:0.3},{iid:"i15",qty:0.005},{iid:"i26",qty:0.1},{iid:"i36",qty:1},{iid:"i39",qty:1}] },
-  { id:"r2", name:'6" Fondant Covered', size:'6"', tiers:1, covering:"fondant",
-    ing:[{iid:"i1",qty:0.3},{iid:"i2",qty:0.25},{iid:"i5",qty:0.2},{iid:"i7",qty:3},{iid:"i8",qty:0.15},{iid:"i14",qty:0.5},{iid:"i15",qty:0.005},{iid:"i17",qty:0.1},{iid:"i36",qty:1},{iid:"i39",qty:1}] },
-  { id:"r3", name:'8" Buttercream Cake', size:'8"', tiers:1, covering:"buttercream",
-    ing:[{iid:"i1",qty:0.5},{iid:"i2",qty:0.4},{iid:"i5",qty:0.3},{iid:"i7",qty:5},{iid:"i8",qty:0.25},{iid:"i11",qty:0.5},{iid:"i15",qty:0.008},{iid:"i26",qty:0.15},{iid:"i36",qty:1},{iid:"i39",qty:1}] },
-  { id:"r4", name:'8" Fondant Covered', size:'8"', tiers:1, covering:"fondant",
-    ing:[{iid:"i1",qty:0.5},{iid:"i2",qty:0.4},{iid:"i5",qty:0.3},{iid:"i7",qty:5},{iid:"i8",qty:0.25},{iid:"i14",qty:0.8},{iid:"i15",qty:0.008},{iid:"i17",qty:0.15},{iid:"i36",qty:1},{iid:"i39",qty:1}] },
-  { id:"r5", name:'10" Buttercream Cake', size:'10"', tiers:1, covering:"buttercream",
-    ing:[{iid:"i1",qty:0.8},{iid:"i2",qty:0.6},{iid:"i5",qty:0.5},{iid:"i7",qty:8},{iid:"i8",qty:0.4},{iid:"i11",qty:0.8},{iid:"i15",qty:0.012},{iid:"i26",qty:0.2},{iid:"i37",qty:1},{iid:"i40",qty:1}] },
-  { id:"r6", name:'2-Tier Fondant Wedding', size:'2-tier', tiers:2, covering:"fondant",
-    ing:[{iid:"i1",qty:1.0},{iid:"i2",qty:0.8},{iid:"i5",qty:0.6},{iid:"i7",qty:10},{iid:"i8",qty:0.5},{iid:"i14",qty:1.5},{iid:"i15",qty:0.015},{iid:"i17",qty:0.3},{iid:"i37",qty:1},{iid:"i38",qty:2},{iid:"i40",qty:1}] },
-  { id:"r7", name:'3-Tier Fondant', size:'3-tier', tiers:3, covering:"fondant",
-    ing:[{iid:"i1",qty:1.8},{iid:"i2",qty:1.4},{iid:"i5",qty:1.0},{iid:"i7",qty:18},{iid:"i8",qty:0.8},{iid:"i14",qty:2.5},{iid:"i15",qty:0.025},{iid:"i17",qty:0.5},{iid:"i38",qty:3},{iid:"i40",qty:1},{iid:"i41",qty:1}] },
-  { id:"r8", name:'Cupcakes ×12', size:'cupcakes×12', tiers:1, covering:"buttercream",
-    ing:[{iid:"i1",qty:0.2},{iid:"i2",qty:0.15},{iid:"i5",qty:0.15},{iid:"i7",qty:2},{iid:"i8",qty:0.1},{iid:"i11",qty:0.2},{iid:"i15",qty:0.003},{iid:"i26",qty:0.05},{iid:"i42",qty:1}] },
-  { id:"r9", name:'Cake Loaf', size:'loaf', tiers:1, covering:"plain",
-    ing:[{iid:"i1",qty:0.25},{iid:"i2",qty:0.2},{iid:"i5",qty:0.18},{iid:"i7",qty:3},{iid:"i8",qty:0.15},{iid:"i15",qty:0.004},{iid:"i26",qty:0.08}] },
+  { id:"r1", name:"Vanilla Cake", notes:"Classic vanilla sponge — quantities for 1 layer",
+    ing:[{iid:"i1",qty:0.3},{iid:"i2",qty:0.25},{iid:"i5",qty:0.2},{iid:"i7",qty:3},{iid:"i8",qty:0.15},{iid:"i11",qty:0.3},{iid:"i15",qty:0.005},{iid:"i26",qty:0.1}] },
+  { id:"r2", name:"Red Velvet Cake", notes:"Red velvet sponge — quantities for 1 layer",
+    ing:[{iid:"i1",qty:0.3},{iid:"i2",qty:0.25},{iid:"i5",qty:0.2},{iid:"i7",qty:3},{iid:"i3",qty:0.12},{iid:"i16",qty:0.01},{iid:"i23",qty:0.03},{iid:"i24",qty:3},{iid:"i15",qty:0.005}] },
+  { id:"r3", name:"Chocolate Cake", notes:"Rich chocolate sponge — quantities for 1 layer",
+    ing:[{iid:"i1",qty:0.28},{iid:"i2",qty:0.25},{iid:"i5",qty:0.2},{iid:"i7",qty:3},{iid:"i8",qty:0.1},{iid:"i20",qty:0.06},{iid:"i21",qty:0.05},{iid:"i15",qty:0.005}] },
+  { id:"r4", name:"Carrot Cake", notes:"Moist carrot cake — quantities for 1 layer",
+    ing:[{iid:"i1",qty:0.25},{iid:"i2",qty:0.2},{iid:"i3",qty:0.15},{iid:"i7",qty:3},{iid:"i28",qty:0.2},{iid:"i15",qty:0.005}] },
+  { id:"r5", name:"Lemon Cake", notes:"Light lemon sponge — quantities for 1 layer",
+    ing:[{iid:"i1",qty:0.3},{iid:"i2",qty:0.25},{iid:"i4",qty:0.15},{iid:"i7",qty:3},{iid:"i8",qty:0.1},{iid:"i15",qty:0.005}] },
+  { id:"r6", name:"Fruit Cake", notes:"Rich fruit cake — quantities for 1 layer",
+    ing:[{iid:"i1",qty:0.25},{iid:"i2",qty:0.2},{iid:"i5",qty:0.18},{iid:"i7",qty:3},{iid:"i27",qty:0.2},{iid:"i15",qty:0.004}] },
+  { id:"r7", name:"Cupcakes (x12)", notes:"Yields 12 cupcakes — do not multiply by layers",
+    ing:[{iid:"i1",qty:0.2},{iid:"i2",qty:0.15},{iid:"i5",qty:0.15},{iid:"i7",qty:2},{iid:"i8",qty:0.1},{iid:"i11",qty:0.2},{iid:"i15",qty:0.003},{iid:"i42",qty:1}] },
+  { id:"r8", name:"Cake Loaf", notes:"Standard loaf — do not multiply by layers",
+    ing:[{iid:"i1",qty:0.25},{iid:"i2",qty:0.2},{iid:"i5",qty:0.18},{iid:"i7",qty:3},{iid:"i8",qty:0.15},{iid:"i15",qty:0.004}] },
 ]
 
 // Decoration extras - per unit cost items selectable per production
@@ -319,6 +318,8 @@ function MasterList({inventory,setInventory,recipes,setRecipes,user}){
   const [msg,setMsg]=useState("")
   const [msgColor,setMsgColor]=useState("gold")
   const [recipeModal,setRecipeModal]=useState(null)
+  const [pasteMode,setPasteMode]=useState(false)
+  const [pasteText,setPasteText]=useState("")
   const csvRef=useRef()
   const isOwner = user?.role==="owner"
 
@@ -388,12 +389,23 @@ function MasterList({inventory,setInventory,recipes,setRecipes,user}){
       {isOwner&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
         <span style={{fontSize:13,color:"var(--muted)"}}>{inventory.length} items · {fmt(inventory.reduce((s,i)=>s+i.cost*i.stock,0))} total value</span>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <Btn small variant="ghost" onClick={()=>csvRef.current?.click()}>📥 Import CSV</Btn>
-          <input ref={csvRef} type="file" accept=".csv,.xlsx,.xls,.txt" onChange={handleCSV} style={{display:"none"}}/>
+          <Btn small variant="ghost" onClick={()=>{setPasteMode(p=>!p);setPasteText("")}}>📋 Paste CSV Data</Btn>
           <Btn small onClick={()=>setAddMode(!addMode)}>+ Add Item</Btn>
         </div>
       </div>}
-      <div style={{fontSize:11.5,color:"var(--muted)",marginBottom:8}}>CSV columns: name, category, unit, cost, stock, minStock (flexible — we'll match similar names)</div>
+      <div style={{fontSize:11.5,color:"var(--muted)",marginBottom:8}}>CSV columns: name, category, unit, cost, stock, minStock — column names are flexible, we match automatically</div>
+      {pasteMode&&<Card style={{marginBottom:12,background:"#FFF9EE",borderColor:"var(--gold)"}}>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:8}}>Paste CSV Data</div>
+        <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:10,lineHeight:1.6}}>Copy from Excel or Google Sheets and paste here. First row should be column headers. Columns can be in any order.</div>
+        <textarea value={pasteText} onChange={e=>setPasteText(e.target.value)} placeholder={"name,category,unit,cost,stock,minStock\nFlour,Dry Goods,kg,1140,50,10\nSugar,Dry Goods,kg,1500,50,10"} style={{width:"100%",minHeight:120,padding:"10px",borderRadius:8,border:"1px solid var(--border)",background:"var(--panel)",fontSize:12.5,fontFamily:"monospace",color:"var(--text)",boxSizing:"border-box",resize:"vertical",outline:"none",marginBottom:10}}/>
+        <div style={{display:"flex",gap:8}}>
+          <Btn onClick={async()=>{
+            if(!pasteText.trim())return
+            try{const items=parseCSV(pasteText);if(items.length===0){showMsg("No items found — check your column headers","red");return}const updated=[...inventory,...items.filter(ni=>!inventory.find(i=>i.name.toLowerCase()===ni.name.toLowerCase()))];setInventory(updated);await saveInventory(updated);showMsg(`✓ ${items.length} items imported (${updated.length-inventory.length} new added, duplicates skipped)`,"green");setPasteMode(false);setPasteText("")}catch(err){showMsg("Import failed: "+err.message,"red")}
+          }}>Import</Btn>
+          <Btn variant="ghost" onClick={()=>{setPasteMode(false);setPasteText("")}}>Cancel</Btn>
+        </div>
+      </Card>}
       {addMode&&isOwner&&<Card style={{marginBottom:12,background:"#FFF9EE",borderColor:"var(--gold)"}}>
         <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:12}}>New Item</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10}}>
@@ -442,45 +454,66 @@ function MasterList({inventory,setInventory,recipes,setRecipes,user}){
 
     {/* ── RECIPES ── */}
     {tab==="recipes"&&<div>
+      <div style={{marginBottom:12,padding:"10px 14px",background:"#FFF9EE",borderRadius:8,border:"1px solid var(--gold)",fontSize:13,lineHeight:1.7}}>
+        Each recipe is for <strong>1 layer</strong> of that flavour. When you log a production, select the recipe and enter the number of layers — the app multiplies automatically.
+      </div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-        <span style={{fontSize:13,color:"var(--muted)"}}>{recipes.length} recipes</span>
+        <span style={{fontSize:13,color:"var(--muted)"}}>{recipes.length} recipes · click any card to expand</span>
         {isOwner&&<Btn small onClick={()=>openRecipe(null)}>+ New Recipe</Btn>}
       </div>
       {recipes.map(r=>{
-        const cost=recipeCost(r,inventory)
-        return <Card key={r.id} style={{marginBottom:10}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+        const costPerLayer=recipeCost(r,inventory)
+        const [open,setOpen]=useState(false)
+        return <Card key={r.id} style={{marginBottom:10,cursor:"pointer"}} onClick={()=>setOpen(o=>!o)}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div>
-              <div style={{fontWeight:600,fontSize:14}}>{r.name}</div>
-              <div style={{fontSize:12,color:"var(--muted)",marginTop:2}}>Size: {r.size} · {r.covering} · {r.tiers} tier(s) · {r.ing.length} ingredients</div>
-              <div style={{fontSize:13,color:"var(--gold)",fontWeight:600,marginTop:3}}>Base cost: {fmt(cost)}</div>
+              <div style={{fontWeight:600,fontSize:15}}>{r.name}</div>
+              {r.notes&&<div style={{fontSize:11.5,color:"var(--muted)",marginTop:2}}>{r.notes}</div>}
             </div>
-            <div style={{display:"flex",gap:6,alignItems:"center"}}>
-              <Badge color={r.covering==="fondant"?"blue":r.covering==="ganache"?"purple":"gold"}>{r.covering}</Badge>
-              {isOwner&&<><Btn small variant="ghost" onClick={()=>openRecipe(r)}>✎ Edit</Btn><Btn small variant="danger" onClick={()=>deleteRecipe(r.id)}>×</Btn></>}
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:12,color:"var(--muted)"}}>Cost per layer</div>
+                <div style={{fontSize:16,fontWeight:700,color:"var(--gold)"}}>{fmt(costPerLayer)}</div>
+              </div>
+              {isOwner&&<div style={{display:"flex",gap:4}} onClick={e=>e.stopPropagation()}>
+                <Btn small variant="ghost" onClick={()=>openRecipe({...r,id:uid(),name:r.name+" (copy)"})}>Copy</Btn>
+                <Btn small variant="ghost" onClick={()=>openRecipe(r)}>✎</Btn>
+                <Btn small variant="danger" onClick={()=>deleteRecipe(r.id)}>×</Btn>
+              </div>}
+              <span style={{color:"var(--muted)",fontSize:16,marginLeft:4}}>{open?"▴":"▾"}</span>
             </div>
           </div>
-          <div style={{marginTop:12,borderTop:"1px solid var(--border)",paddingTop:10}}>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:4}}>
-              {r.ing.map(ing=>{const it=inventory.find(x=>x.id===ing.iid);return it?<div key={ing.iid} style={{fontSize:12,color:"var(--muted)",display:"flex",justifyContent:"space-between",background:"#F5F0E4",borderRadius:5,padding:"3px 8px"}}><span>{it.name} ({ing.qty}{it.unit})</span><span style={{color:"var(--text)",fontWeight:500}}>{fmt(it.cost*ing.qty)}</span></div>:null})}
-            </div>
-          </div>
+          {open&&<div style={{marginTop:14,borderTop:"1px solid var(--border)",paddingTop:12}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:11,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Ingredients — 1 layer</div>
+            <table style={{width:"100%",borderCollapse:"collapse"}}>
+              <thead><tr>{["Ingredient","Qty","Unit Cost","Line Cost"].map(h=><th key={h} style={{textAlign:h==="Ingredient"?"left":"right",fontSize:10.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:0.8,paddingBottom:5,fontWeight:500}}>{h}</th>)}</tr></thead>
+              <tbody>
+                {r.ing.map(ing=>{const it=inventory.find(x=>x.id===ing.iid);return it?<tr key={ing.iid} style={{borderBottom:"1px solid var(--border)"}}>
+                  <td style={{padding:"5px 0",fontSize:13}}>{it.name}</td>
+                  <td style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>{ing.qty}</td>
+                  <td style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>{fmt(it.cost)}/{it.unit}</td>
+                  <td style={{textAlign:"right",fontWeight:500,fontSize:13}}>{fmt(it.cost*ing.qty)}</td>
+                </tr>:null})}
+                <tr><td colSpan={3} style={{textAlign:"right",fontWeight:700,paddingTop:8,fontSize:13}}>Cost × 1 layer</td><td style={{textAlign:"right",fontWeight:700,color:"var(--gold)",fontSize:15,paddingTop:8}}>{fmt(costPerLayer)}</td></tr>
+                <tr><td colSpan={3} style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>Cost × 2 layers</td><td style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>{fmt(costPerLayer*2)}</td></tr>
+                <tr><td colSpan={3} style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>Cost × 3 layers</td><td style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>{fmt(costPerLayer*3)}</td></tr>
+              </tbody>
+            </table>
+          </div>}
         </Card>
       })}
       {recipeModal&&<Modal title={recipeModal.name?"Edit Recipe":"New Recipe"} onClose={()=>setRecipeModal(null)}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          <Inp label="Recipe Name *" value={recipeModal.name} onChange={v=>setRecipeModal(r=>({...r,name:v}))}/>
-          <Inp label="Size (e.g. 8 inch)" value={recipeModal.size} onChange={v=>setRecipeModal(r=>({...r,size:v}))}/>
-          <Sel label="Covering *" value={recipeModal.covering} onChange={v=>setRecipeModal(r=>({...r,covering:v}))} options={["buttercream","fondant","ganache","naked","plain"].map(c=>({value:c,label:c}))}/>
-          <Sel label="Tiers" value={String(recipeModal.tiers)} onChange={v=>setRecipeModal(r=>({...r,tiers:+v}))} options={["1","2","3","4"].map(n=>({value:n,label:`${n} tier${+n>1?"s":""}`}))}/>
-        </div>
-        <div style={{fontWeight:600,fontSize:13,marginBottom:8,marginTop:4}}>Ingredients</div>
+        <Inp label="Recipe Name * (e.g. Vanilla Cake, Red Velvet)" value={recipeModal.name} onChange={v=>setRecipeModal(r=>({...r,name:v}))}/>
+        <Inp label="Notes (optional)" value={recipeModal.notes||""} onChange={v=>setRecipeModal(r=>({...r,notes:v}))} placeholder="e.g. Quantities for 1 layer"/>
+        <div style={{padding:"8px 12px",background:"#FFF9EE",borderRadius:7,fontSize:12.5,color:"#9A6C1A",marginBottom:12}}>Enter quantities for <strong>one single layer</strong>. The production form will multiply by the number of layers.</div>
+        <div style={{fontWeight:600,fontSize:13,marginBottom:8}}>Ingredients (per 1 layer)</div>
         {recipeModal.ing.map((ing,idx)=><div key={idx} style={{display:"flex",gap:8,marginBottom:6,alignItems:"center"}}>
-          <select value={ing.iid} onChange={e=>updateIng(idx,"iid",e.target.value)} style={{...iSt,flex:2,fontSize:12}}><option value="">— Select ingredient —</option>{inventory.map(i=><option key={i.id} value={i.id}>{i.name} ({i.unit})</option>)}</select>
+          <select value={ing.iid} onChange={e=>updateIng(idx,"iid",e.target.value)} style={{...iSt,flex:2,fontSize:12}}><option value="">— Select ingredient —</option>{inventory.map(i=><option key={i.id} value={i.id}>{i.name} ({i.unit}) — {fmt(i.cost)}/{i.unit}</option>)}</select>
           <input type="number" placeholder="Qty" value={ing.qty} onChange={e=>updateIng(idx,"qty",e.target.value)} style={{...iSt,width:70,fontSize:12}}/>
           <Btn small variant="danger" onClick={()=>removeIng(idx)}>×</Btn>
         </div>)}
         <Btn small variant="ghost" onClick={addIngToRecipe}>+ Add Ingredient</Btn>
+        {recipeModal.ing.length>0&&<div style={{marginTop:10,padding:"8px 12px",background:"#F5F0E4",borderRadius:7,fontSize:13}}>Cost per layer: <strong style={{color:"var(--gold)"}}>{fmt(recipeCost(recipeModal,inventory))}</strong></div>}
         <div style={{marginTop:12,display:"flex",gap:8}}><Btn variant="success" onClick={saveRecipe}>✓ Save Recipe</Btn><Btn variant="ghost" onClick={()=>setRecipeModal(null)}>Cancel</Btn></div>
       </Modal>}
     </div>}
@@ -526,6 +559,7 @@ function ProductionEntry({inventory,setInventory,recipes,productions,setProducti
 
   // Order details
   const [recipeId,setRecipeId]=useState("")
+  const [layers,setLayers]=useState("1")
   const [size,setSize]=useState("");const [covering,setCovering]=useState("")
   const [flavors,setFlavors]=useState("");const [decorIds,setDecorIds]=useState([])
   const [client,setClient]=useState("");const [clientPhone,setClientPhone]=useState("");const [clientEmail,setClientEmail]=useState("")
@@ -539,11 +573,12 @@ function ProductionEntry({inventory,setInventory,recipes,productions,setProducti
 
   const matchedRecipe = recipes.find(r=>r.id===recipeId) || recipes.find(r=>r.size===size&&r.covering===covering) || recipes.find(r=>r.size===size) || null
 
-  const baseCost = calcFullCost(matchedRecipe, inventory, flavors, decorIds, settings.accessoryPct)
+  const baseCost = calcFullCost(matchedRecipe, inventory, flavors, decorIds, settings.accessoryPct) * (+layers||1)
   const delivCost = +deliveryCost||0
   const totalProdCost = baseCost + delivCost
   const discount = paymentType==="discount"?(+salePrice*(+discountPct/100)):0
   const effectiveSale = paymentType==="full"||paymentType==="deposit" ? +salePrice : paymentType==="discount" ? +salePrice-discount : 0
+  const costPerLayer = calcFullCost(matchedRecipe, inventory, flavors, decorIds, settings.accessoryPct)
   const suggestedPrice = baseCost * (1 + (settings.profitPct||40)/100) + delivCost
 
   const handleFile=e=>{const file=e.target.files[0];if(!file)return;setPhoto(URL.createObjectURL(file));const r=new FileReader();r.onload=ev=>setPhotoB64(ev.target.result.split(",")[1]);r.readAsDataURL(file)}
@@ -598,7 +633,8 @@ Analyze this cake image carefully and return ONLY valid JSON with this exact str
     const prod={id:uid(),recipeId:matchedRecipe?.id,client,clientPhone,clientEmail,orderDate,deliveryDate:delivDate,cost:Math.round(totalProdCost),deliveryCost:delivCost,salePrice:Math.round(effectiveSale),status:"pending",size,covering,flavors,decorations:decorIds.join(","),layers:1,accessoryPct:settings.accessoryPct,profitPct:settings.profitPct,paymentType,discountPct:+discountPct,notes}
     // Deduct inventory
     if(matchedRecipe){
-      const deductions=[...matchedRecipe.ing.map(i=>({...i,qty:+i.qty}))]
+      const layerCount=+layers||1
+      const deductions=[...matchedRecipe.ing.map(i=>({...i,qty:+(i.qty)*layerCount}))]
       const fl=(flavors||"").toLowerCase().split(/[,+&]/).map(f=>f.trim()).filter(Boolean)
       fl.forEach(f=>(FLAVOR_EXTRAS[f]||[]).forEach(e=>{const ex=deductions.find(d=>d.iid===e.iid);if(ex)ex.qty=parseFloat((ex.qty+e.qty).toFixed(3));else deductions.push({iid:e.iid,qty:e.qty})}))
       decorIds.forEach(did=>{const decor=DECORATION_ITEMS.find(d=>d.id===did);if(decor){const ex=deductions.find(d=>d.iid===decor.iid);if(ex)ex.qty=parseFloat((ex.qty+decor.qty).toFixed(3));else deductions.push({iid:decor.iid,qty:decor.qty})}})
@@ -607,7 +643,7 @@ Analyze this cake image carefully and return ONLY valid JSON with this exact str
     }
     setProductions(prev=>[prod,...prev]);await saveProduction(prod);setSaving(false)
     // Reset
-    setStep(1);setPhoto(null);setPhotoB64(null);setAiObs(null);setAiMsg("");setRecipeId("");setSize("");setCovering("");setFlavors("");setDecorIds([]);setClient("");setClientPhone("");setClientEmail("");setOrderDate(today());setDelivDate("");setSalePrice("");setDeliveryCost("0");setPaymentType("full");setDiscountPct("0");setNotes("")
+    setStep(1);setPhoto(null);setPhotoB64(null);setAiObs(null);setAiMsg("");setRecipeId("");setLayers("1");setSize("");setCovering("");setFlavors("");setDecorIds([]);setClient("");setClientPhone("");setClientEmail("");setOrderDate(today());setDelivDate("");setSalePrice("");setDeliveryCost("0");setPaymentType("full");setDiscountPct("0");setNotes("")
     setView("records")
   }
 
@@ -638,7 +674,15 @@ Analyze this cake image carefully and return ONLY valid JSON with this exact str
           <Sel label="Covering *" value={covering} onChange={setCovering} options={COVERINGS.map(c=>({value:c,label:c.charAt(0).toUpperCase()+c.slice(1)}))}/>
         </div>
         <Inp label="Flavour(s) *" value={flavors} onChange={setFlavors} placeholder="e.g. Vanilla, Chocolate, Red Velvet"/>
-        <Sel label="Use Recipe" value={recipeId} onChange={setRecipeId} options={recipes.map(r=>({value:r.id,label:`${r.name} (${fmt(recipeCost(r,inventory))})`}))} placeholder="Auto-match from size & covering"/>
+        <Sel label="Use Recipe" value={recipeId} onChange={setRecipeId} options={recipes.map(r=>({value:r.id,label:`${r.name} (${fmt(recipeCost(r,inventory))}/layer)`}))} placeholder="Select flavour recipe"/>
+        {recipeId&&<div style={{padding:"8px 12px",background:"#E8EFFC",borderRadius:8,fontSize:12.5,marginBottom:11,color:"#2355A0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span>Cost per layer: <strong>{fmt(costPerLayer)}</strong></span>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <label style={{fontSize:12,color:"#2355A0"}}>Layers:</label>
+            <select value={layers} onChange={e=>setLayers(e.target.value)} style={{...iSt,width:80,padding:"4px 8px",fontSize:13}}>{["1","2","3","4","5","6"].map(n=><option key={n} value={n}>{n}</option>)}</select>
+            <span style={{fontWeight:700,color:"var(--gold)"}}>= {fmt(costPerLayer*(+layers||1))}</span>
+          </div>
+        </div>}
         <div style={{marginBottom:12}}>
           <label style={{fontSize:10.5,color:"var(--muted)",display:"block",marginBottom:6,textTransform:"uppercase",letterSpacing:0.8,fontWeight:500}}>Decoration Extras (select all that apply)</label>
           <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
