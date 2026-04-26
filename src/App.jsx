@@ -307,6 +307,51 @@ function Dashboard({productions,inventory,expenses,setView,user}){
 }
 
 // ═══════════════════════════════════════════════════════════
+//  RECIPE CARD (standalone component — avoids hook-in-map bug)
+// ═══════════════════════════════════════════════════════════
+function RecipeCard({r, inventory, isOwner, onEdit, onCopy, onDelete}){
+  const [open,setOpen]=useState(false)
+  const costPerLayer=recipeCost(r,inventory)
+  return <Card style={{marginBottom:10,cursor:"pointer"}} onClick={()=>setOpen(o=>!o)}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <div>
+        <div style={{fontWeight:600,fontSize:15}}>{r.name}</div>
+        {r.notes&&<div style={{fontSize:11.5,color:"var(--muted)",marginTop:2}}>{r.notes}</div>}
+      </div>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <div style={{textAlign:"right"}}>
+          <div style={{fontSize:12,color:"var(--muted)"}}>Cost per layer</div>
+          <div style={{fontSize:16,fontWeight:700,color:"var(--gold)"}}>{fmt(costPerLayer)}</div>
+        </div>
+        {isOwner&&<div style={{display:"flex",gap:4}} onClick={e=>e.stopPropagation()}>
+          <Btn small variant="ghost" onClick={onCopy}>Copy</Btn>
+          <Btn small variant="ghost" onClick={onEdit}>✎</Btn>
+          <Btn small variant="danger" onClick={onDelete}>×</Btn>
+        </div>}
+        <span style={{color:"var(--muted)",fontSize:16,marginLeft:4}}>{open?"▴":"▾"}</span>
+      </div>
+    </div>
+    {open&&<div style={{marginTop:14,borderTop:"1px solid var(--border)",paddingTop:12}} onClick={e=>e.stopPropagation()}>
+      <div style={{fontSize:11,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Ingredients — 1 layer</div>
+      <table style={{width:"100%",borderCollapse:"collapse"}}>
+        <thead><tr>{["Ingredient","Qty","Unit Cost","Line Cost"].map(h=><th key={h} style={{textAlign:h==="Ingredient"?"left":"right",fontSize:10.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:0.8,paddingBottom:5,fontWeight:500}}>{h}</th>)}</tr></thead>
+        <tbody>
+          {r.ing.map(ing=>{const it=inventory.find(x=>x.id===ing.iid);return it?<tr key={ing.iid} style={{borderBottom:"1px solid var(--border)"}}>
+            <td style={{padding:"5px 0",fontSize:13}}>{it.name}</td>
+            <td style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>{ing.qty}</td>
+            <td style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>{fmt(it.cost)}/{it.unit}</td>
+            <td style={{textAlign:"right",fontWeight:500,fontSize:13}}>{fmt(it.cost*ing.qty)}</td>
+          </tr>:null})}
+          <tr><td colSpan={3} style={{textAlign:"right",fontWeight:700,paddingTop:8,fontSize:13}}>Cost × 1 layer</td><td style={{textAlign:"right",fontWeight:700,color:"var(--gold)",fontSize:15,paddingTop:8}}>{fmt(costPerLayer)}</td></tr>
+          <tr><td colSpan={3} style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>Cost × 2 layers</td><td style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>{fmt(costPerLayer*2)}</td></tr>
+          <tr><td colSpan={3} style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>Cost × 3 layers</td><td style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>{fmt(costPerLayer*3)}</td></tr>
+        </tbody>
+      </table>
+    </div>}
+  </Card>
+}
+
+// ═══════════════════════════════════════════════════════════
 //  MASTER LIST (editable inventory + editable recipes)
 // ═══════════════════════════════════════════════════════════
 function MasterList({inventory,setInventory,recipes,setRecipes,user}){
@@ -461,47 +506,7 @@ function MasterList({inventory,setInventory,recipes,setRecipes,user}){
         <span style={{fontSize:13,color:"var(--muted)"}}>{recipes.length} recipes · click any card to expand</span>
         {isOwner&&<Btn small onClick={()=>openRecipe(null)}>+ New Recipe</Btn>}
       </div>
-      {recipes.map(r=>{
-        const costPerLayer=recipeCost(r,inventory)
-        const [open,setOpen]=useState(false)
-        return <Card key={r.id} style={{marginBottom:10,cursor:"pointer"}} onClick={()=>setOpen(o=>!o)}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div>
-              <div style={{fontWeight:600,fontSize:15}}>{r.name}</div>
-              {r.notes&&<div style={{fontSize:11.5,color:"var(--muted)",marginTop:2}}>{r.notes}</div>}
-            </div>
-            <div style={{display:"flex",gap:8,alignItems:"center"}}>
-              <div style={{textAlign:"right"}}>
-                <div style={{fontSize:12,color:"var(--muted)"}}>Cost per layer</div>
-                <div style={{fontSize:16,fontWeight:700,color:"var(--gold)"}}>{fmt(costPerLayer)}</div>
-              </div>
-              {isOwner&&<div style={{display:"flex",gap:4}} onClick={e=>e.stopPropagation()}>
-                <Btn small variant="ghost" onClick={()=>openRecipe({...r,id:uid(),name:r.name+" (copy)"})}>Copy</Btn>
-                <Btn small variant="ghost" onClick={()=>openRecipe(r)}>✎</Btn>
-                <Btn small variant="danger" onClick={()=>deleteRecipe(r.id)}>×</Btn>
-              </div>}
-              <span style={{color:"var(--muted)",fontSize:16,marginLeft:4}}>{open?"▴":"▾"}</span>
-            </div>
-          </div>
-          {open&&<div style={{marginTop:14,borderTop:"1px solid var(--border)",paddingTop:12}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:11,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Ingredients — 1 layer</div>
-            <table style={{width:"100%",borderCollapse:"collapse"}}>
-              <thead><tr>{["Ingredient","Qty","Unit Cost","Line Cost"].map(h=><th key={h} style={{textAlign:h==="Ingredient"?"left":"right",fontSize:10.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:0.8,paddingBottom:5,fontWeight:500}}>{h}</th>)}</tr></thead>
-              <tbody>
-                {r.ing.map(ing=>{const it=inventory.find(x=>x.id===ing.iid);return it?<tr key={ing.iid} style={{borderBottom:"1px solid var(--border)"}}>
-                  <td style={{padding:"5px 0",fontSize:13}}>{it.name}</td>
-                  <td style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>{ing.qty}</td>
-                  <td style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>{fmt(it.cost)}/{it.unit}</td>
-                  <td style={{textAlign:"right",fontWeight:500,fontSize:13}}>{fmt(it.cost*ing.qty)}</td>
-                </tr>:null})}
-                <tr><td colSpan={3} style={{textAlign:"right",fontWeight:700,paddingTop:8,fontSize:13}}>Cost × 1 layer</td><td style={{textAlign:"right",fontWeight:700,color:"var(--gold)",fontSize:15,paddingTop:8}}>{fmt(costPerLayer)}</td></tr>
-                <tr><td colSpan={3} style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>Cost × 2 layers</td><td style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>{fmt(costPerLayer*2)}</td></tr>
-                <tr><td colSpan={3} style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>Cost × 3 layers</td><td style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>{fmt(costPerLayer*3)}</td></tr>
-              </tbody>
-            </table>
-          </div>}
-        </Card>
-      })}
+      {recipes.map(r=><RecipeCard key={r.id} r={r} inventory={inventory} isOwner={isOwner} onEdit={()=>openRecipe(r)} onCopy={()=>openRecipe({...r,id:uid(),name:r.name+" (copy)"})} onDelete={()=>deleteRecipe(r.id)}/>)}
       {recipeModal&&<Modal title={recipeModal.name?"Edit Recipe":"New Recipe"} onClose={()=>setRecipeModal(null)}>
         <Inp label="Recipe Name * (e.g. Vanilla Cake, Red Velvet)" value={recipeModal.name} onChange={v=>setRecipeModal(r=>({...r,name:v}))}/>
         <Inp label="Notes (optional)" value={recipeModal.notes||""} onChange={v=>setRecipeModal(r=>({...r,notes:v}))} placeholder="e.g. Quantities for 1 layer"/>
