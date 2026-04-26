@@ -437,6 +437,100 @@ function RecipeCard({r, inventory, isOwner, onEdit, onDelete}){
 }
 
 // ═══════════════════════════════════════════════════════════
+//  DECORATIONS TAB (standalone — own state, saved to localStorage)
+// ═══════════════════════════════════════════════════════════
+function DecorationsTab({inventory, isOwner}){
+  const LS_KEY = "ll_decorations"
+  const load = () => { try { const v=localStorage.getItem(LS_KEY); return v?JSON.parse(v):DECORATION_ITEMS } catch { return DECORATION_ITEMS } }
+  const save = (items) => { try { localStorage.setItem(LS_KEY, JSON.stringify(items)) } catch {} }
+
+  const [items, setItems] = useState(load)
+  const [editId, setEditId] = useState(null)
+  const [editRow, setEditRow] = useState({})
+  const [adding, setAdding] = useState(false)
+  const [newItem, setNewItem] = useState({name:"", label:"", iid:"", qty:"", id:""})
+  const [msg, setMsg] = useState("")
+
+  const showMsg = (m) => { setMsg(m); setTimeout(()=>setMsg(""), 3000) }
+
+  const startEdit = (d) => { setEditId(d.id); setEditRow({...d}) }
+
+  const saveEdit = () => {
+    const updated = items.map(d => d.id===editId ? {...editRow, qty:+editRow.qty} : d)
+    setItems(updated); save(updated); setEditId(null); showMsg("✓ Decoration updated")
+  }
+
+  const deleteItem = (id) => {
+    if(!confirm("Delete this decoration?")) return
+    const updated = items.filter(d => d.id!==id)
+    setItems(updated); save(updated); showMsg("Decoration deleted")
+  }
+
+  const addItem = () => {
+    if(!newItem.name || !newItem.iid || !newItem.qty) return showMsg("Name, inventory item and qty are required")
+    const item = { ...newItem, id: uid(), qty: +newItem.qty, label: newItem.name }
+    const updated = [...items, item]
+    setItems(updated); save(updated)
+    setNewItem({name:"", label:"", iid:"", qty:"", id:""}); setAdding(false); showMsg("✓ Decoration added")
+  }
+
+  return <div>
+    <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}>
+      <div style={{fontSize:13, color:"var(--muted)"}}>Selectable per production order. Costs update automatically when inventory prices change.</div>
+      {isOwner&&<Btn small onClick={()=>setAdding(!adding)}>+ Add Decoration</Btn>}
+    </div>
+
+    {msg&&<Alert msg={msg} color={msg.startsWith("✓")?"green":"gold"} onClose={()=>setMsg("")}/>}
+
+    {adding&&isOwner&&<Card style={{marginBottom:14, background:"#FFF9EE", borderColor:"var(--gold)"}}>
+      <div style={{fontFamily:"'Playfair Display',serif", fontSize:14, fontWeight:600, marginBottom:12}}>New Decoration Extra</div>
+      <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:10}}>
+        <Inp label="Decoration Name *" value={newItem.name} onChange={v=>setNewItem(p=>({...p,name:v}))} placeholder="e.g. Edible glitter"/>
+        <div style={{marginBottom:11}}>
+          <label style={{fontSize:10.5,color:"var(--muted)",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:0.8,fontWeight:500}}>Linked Inventory Item *</label>
+          <select value={newItem.iid} onChange={e=>setNewItem(p=>({...p,iid:e.target.value}))} style={{...iSt}}>
+            <option value="">— Select item —</option>
+            {inventory.map(i=><option key={i.id} value={i.id}>{i.name} ({i.unit}) — {fmt(i.cost)}/{i.unit}</option>)}
+          </select>
+        </div>
+        <Inp label="Standard Qty Used *" type="number" value={newItem.qty} onChange={v=>setNewItem(p=>({...p,qty:v}))} placeholder="e.g. 0.15"/>
+      </div>
+      <div style={{display:"flex", gap:8}}><Btn onClick={addItem}>Save</Btn><Btn variant="ghost" onClick={()=>setAdding(false)}>Cancel</Btn></div>
+    </Card>}
+
+    <div style={{overflowX:"auto"}}>
+      <table style={{width:"100%", borderCollapse:"collapse", background:"var(--panel)", borderRadius:10, overflow:"hidden", border:"1px solid var(--border)"}}>
+        <TH cols={["Decoration", "Linked Inventory Item", "Std Qty", "Cost", ...(isOwner?["Actions"]:[])]}/>
+        <tbody>{items.map((d,i)=>{
+          const it = inventory.find(x=>x.id===d.iid)
+          const editing = editId===d.id
+          return <tr key={d.id} style={{background:i%2===0?"var(--panel)":"#F8F3EA"}}>
+            {editing ? <>
+              <td style={{padding:"6px 8px"}}><input value={editRow.name||editRow.label||""} onChange={e=>setEditRow(r=>({...r,name:e.target.value,label:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12}}/></td>
+              <td style={{padding:"6px 8px"}}>
+                <select value={editRow.iid||""} onChange={e=>setEditRow(r=>({...r,iid:e.target.value}))} style={{...iSt,fontSize:12,padding:"4px 6px"}}>
+                  <option value="">— Select —</option>
+                  {inventory.map(i=><option key={i.id} value={i.id}>{i.name} ({i.unit})</option>)}
+                </select>
+              </td>
+              <td style={{padding:"6px 8px"}}><input type="number" value={editRow.qty||""} onChange={e=>setEditRow(r=>({...r,qty:e.target.value}))} style={{...iSt,width:70,padding:"4px 6px",fontSize:12}}/></td>
+              <td style={{padding:"6px 8px",fontSize:13}}>{editRow.iid&&inventory.find(x=>x.id===editRow.iid)?fmt(inventory.find(x=>x.id===editRow.iid).cost*(+editRow.qty||0)):"—"}</td>
+              <td style={{padding:"6px 8px"}}><div style={{display:"flex",gap:4}}><Btn small variant="success" onClick={saveEdit}>✓</Btn><Btn small variant="ghost" onClick={()=>setEditId(null)}>✗</Btn></div></td>
+            </> : <>
+              <td style={{padding:"9px 10px",fontWeight:500,fontSize:13}}>{d.name||d.label}</td>
+              <td style={{padding:"9px 10px",color:"var(--muted)",fontSize:12.5}}>{it?.name||<span style={{color:"#B03A2E"}}>⚠ Not found</span>}</td>
+              <td style={{padding:"9px 10px",fontSize:13}}>{d.qty} {it?.unit||""}</td>
+              <td style={{padding:"9px 10px",color:"var(--gold)",fontWeight:500,fontSize:13}}>{it?fmt(it.cost*d.qty):"—"}</td>
+              {isOwner&&<td style={{padding:"9px 10px"}}><div style={{display:"flex",gap:4}}><Btn small variant="ghost" onClick={()=>startEdit(d)}>✎ Edit</Btn><Btn small variant="danger" onClick={()=>deleteItem(d.id)}>×</Btn></div></td>}
+            </>}
+          </tr>
+        })}</tbody>
+      </table>
+    </div>
+  </div>
+}
+
+// ═══════════════════════════════════════════════════════════
 //  MASTER LIST (editable inventory + editable recipes)
 // ═══════════════════════════════════════════════════════════
 function MasterList({inventory,setInventory,recipes,setRecipes,user}){
@@ -609,23 +703,7 @@ function MasterList({inventory,setInventory,recipes,setRecipes,user}){
     </div>}
 
     {/* ── DECORATIONS ── */}
-    {tab==="decorations"&&<div>
-      <div style={{marginBottom:12,fontSize:13,color:"var(--muted)"}}>These decoration extras are selectable per production order. Costs update automatically when inventory prices change.</div>
-      <div style={{overflowX:"auto"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",background:"var(--panel)",borderRadius:10,overflow:"hidden",border:"1px solid var(--border)"}}>
-          <TH cols={["Decoration","Linked Inventory Item","Qty Used","Cost"]}/>
-          <tbody>{DECORATION_ITEMS.map((d,i)=>{
-            const it=inventory.find(x=>x.id===d.iid)
-            return <TR2 key={d.id} i={i} row={[
-              <span style={{fontWeight:500}}>{d.label}</span>,
-              <span style={{color:"var(--muted)",fontSize:12.5}}>{it?.name||"—"}</span>,
-              <span>{d.qty} {it?.unit}</span>,
-              <span style={{color:"var(--gold)",fontWeight:500}}>{it?fmt(it.cost*d.qty):"—"}</span>,
-            ]}/>
-          })}</tbody>
-        </table>
-      </div>
-    </div>}
+    {tab==="decorations"&&<DecorationsTab inventory={inventory} isOwner={isOwner}/>}
   </div>
 }
 
