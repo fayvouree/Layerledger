@@ -309,44 +309,129 @@ function Dashboard({productions,inventory,expenses,setView,user}){
 // ═══════════════════════════════════════════════════════════
 //  RECIPE CARD (standalone component — avoids hook-in-map bug)
 // ═══════════════════════════════════════════════════════════
-function RecipeCard({r, inventory, isOwner, onEdit, onCopy, onDelete}){
+function RecipeCard({r, inventory, isOwner, onEdit, onDelete}){
   const [open,setOpen]=useState(false)
-  const costPerLayer=recipeCost(r,inventory)
-  return <Card style={{marginBottom:10,cursor:"pointer"}} onClick={()=>setOpen(o=>!o)}>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+  const [size,setSize]=useState("6")
+  const [shape,setShape]=useState("round")
+  const [layers,setLayers]=useState("1")
+
+  // Load multipliers from localStorage (set in Settings → Pricing setup)
+  const getMult=()=>{
+    try{
+      const all=JSON.parse(localStorage.getItem("ll_multipliers")||"{}")
+      const recMults=all[r.id]||{}
+      return recMults[size+"-"+shape]||null
+    }catch{return null}
+  }
+  const mult=getMult()
+  const factor=(mult||1)*(+layers||1)
+  const cleanNote=(r.notes||"").replace(/\s*—\s*quantities for 1 layer/gi,"").replace(/\s*-\s*quantities for 1 layer/gi,"").trim()
+
+  return <Card style={{marginBottom:10}} >
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}} onClick={()=>setOpen(o=>!o)}>
       <div>
         <div style={{fontWeight:600,fontSize:15}}>{r.name}</div>
-        {r.notes&&<div style={{fontSize:11.5,color:"var(--muted)",marginTop:2}}>{r.notes}</div>}
+        {cleanNote&&<div style={{fontSize:11.5,color:"var(--muted)",marginTop:2}}>{cleanNote}</div>}
       </div>
-      <div style={{display:"flex",gap:8,alignItems:"center"}}>
-        <div style={{textAlign:"right"}}>
-          <div style={{fontSize:12,color:"var(--muted)"}}>Cost per layer</div>
-          <div style={{fontSize:16,fontWeight:700,color:"var(--gold)"}}>{fmt(costPerLayer)}</div>
-        </div>
+      <div style={{display:"flex",gap:6,alignItems:"center"}}>
         {isOwner&&<div style={{display:"flex",gap:4}} onClick={e=>e.stopPropagation()}>
-          <Btn small variant="ghost" onClick={onCopy}>Copy</Btn>
-          <Btn small variant="ghost" onClick={onEdit}>✎</Btn>
+          <Btn small variant="ghost" onClick={onEdit}>✎ Edit</Btn>
           <Btn small variant="danger" onClick={onDelete}>×</Btn>
         </div>}
         <span style={{color:"var(--muted)",fontSize:16,marginLeft:4}}>{open?"▴":"▾"}</span>
       </div>
     </div>
-    {open&&<div style={{marginTop:14,borderTop:"1px solid var(--border)",paddingTop:12}} onClick={e=>e.stopPropagation()}>
-      <div style={{fontSize:11,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Ingredients — 1 layer</div>
-      <table style={{width:"100%",borderCollapse:"collapse"}}>
-        <thead><tr>{["Ingredient","Qty","Unit Cost","Line Cost"].map(h=><th key={h} style={{textAlign:h==="Ingredient"?"left":"right",fontSize:10.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:0.8,paddingBottom:5,fontWeight:500}}>{h}</th>)}</tr></thead>
-        <tbody>
-          {r.ing.map(ing=>{const it=inventory.find(x=>x.id===ing.iid);return it?<tr key={ing.iid} style={{borderBottom:"1px solid var(--border)"}}>
-            <td style={{padding:"5px 0",fontSize:13}}>{it.name}</td>
-            <td style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>{ing.qty}</td>
-            <td style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>{fmt(it.cost)}/{it.unit}</td>
-            <td style={{textAlign:"right",fontWeight:500,fontSize:13}}>{fmt(it.cost*ing.qty)}</td>
-          </tr>:null})}
-          <tr><td colSpan={3} style={{textAlign:"right",fontWeight:700,paddingTop:8,fontSize:13}}>Cost × 1 layer</td><td style={{textAlign:"right",fontWeight:700,color:"var(--gold)",fontSize:15,paddingTop:8}}>{fmt(costPerLayer)}</td></tr>
-          <tr><td colSpan={3} style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>Cost × 2 layers</td><td style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>{fmt(costPerLayer*2)}</td></tr>
-          <tr><td colSpan={3} style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>Cost × 3 layers</td><td style={{textAlign:"right",color:"var(--muted)",fontSize:12}}>{fmt(costPerLayer*3)}</td></tr>
-        </tbody>
-      </table>
+
+    {open&&<div style={{marginTop:14,borderTop:"1px solid var(--border)",paddingTop:14}} onClick={e=>e.stopPropagation()}>
+      <div style={{display:"grid",gridTemplateColumns:"1.2fr 0.8fr",gap:20}}>
+
+        {/* LEFT — ingredient table, quantities scale with selection */}
+        <div>
+          <div style={{fontSize:10.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:0.8,marginBottom:10}}>
+            Ingredients — {size}" · {shape} · {layers} layer{+layers>1?"s":""}
+            {mult===null&&<span style={{color:"#B03A2E",marginLeft:6}}>(set multiplier to see scaled qty)</span>}
+          </div>
+          <table style={{width:"100%",borderCollapse:"collapse"}}>
+            <thead><tr>
+              {["Ingredient","Qty needed","Unit cost","Line cost"].map(h=><th key={h} style={{textAlign:h==="Ingredient"?"left":"right",fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:0.8,paddingBottom:6,fontWeight:500}}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {r.ing.map(ing=>{
+                const it=inventory.find(x=>x.id===ing.iid)
+                if(!it)return null
+                const scaledQty=mult!==null?parseFloat((ing.qty*factor).toFixed(3)):ing.qty
+                const lineCost=it.cost*(mult!==null?scaledQty:ing.qty)
+                return <tr key={ing.iid} style={{borderBottom:"1px solid var(--border)"}}>
+                  <td style={{padding:"5px 0",fontSize:13}}>{it.name}</td>
+                  <td style={{textAlign:"right",fontSize:12,color:mult!==null?"var(--text)":"var(--muted)",fontWeight:mult!==null?500:400}}>{scaledQty} {it.unit}</td>
+                  <td style={{textAlign:"right",fontSize:12,color:"var(--muted)"}}>{fmt(it.cost)}/{it.unit}</td>
+                  <td style={{textAlign:"right",fontSize:13,fontWeight:500}}>{fmt(lineCost)}</td>
+                </tr>
+              })}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={3} style={{textAlign:"right",fontSize:12,color:"var(--muted)",paddingTop:8,borderTop:"1px solid var(--border)"}}>Total ingredient cost</td>
+                <td style={{textAlign:"right",fontWeight:700,color:"var(--gold)",fontSize:16,paddingTop:8,borderTop:"1px solid var(--border)"}}>{mult!==null?fmt(r.ing.reduce((s,ing)=>{const it=inventory.find(x=>x.id===ing.iid);return s+(it?it.cost*ing.qty*factor:0)},0)):fmt(recipeCost(r,inventory))}</td>
+              </tr>
+            </tfoot>
+          </table>
+          <div style={{marginTop:10,fontSize:11.5,color:"var(--muted)",background:"#F5F0E4",borderRadius:7,padding:"7px 10px"}}>
+            Boxes, boards and delivery are added at production entry — not here.
+          </div>
+        </div>
+
+        {/* RIGHT — calculator dropdowns */}
+        <div>
+          <div style={{fontSize:10.5,color:"var(--muted)",textTransform:"uppercase",letterSpacing:0.8,marginBottom:10}}>Recipe calculator</div>
+          <div style={{background:"#F5F0E4",borderRadius:10,padding:14,display:"flex",flexDirection:"column",gap:10}}>
+
+            <div>
+              <label style={{fontSize:10.5,color:"var(--muted)",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:0.8,fontWeight:500}}>Size</label>
+              <select value={size} onChange={e=>setSize(e.target.value)} style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1px solid var(--border)",background:"var(--panel)",color:"var(--text)",fontSize:13}}>
+                {["6","7","8","9","10","12","14"].map(s=><option key={s} value={s}>{s} inch</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label style={{fontSize:10.5,color:"var(--muted)",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:0.8,fontWeight:500}}>Shape</label>
+              <select value={shape} onChange={e=>setShape(e.target.value)} style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1px solid var(--border)",background:"var(--panel)",color:"var(--text)",fontSize:13}}>
+                {["round","square","heart","number","sheet"].map(s=><option key={s} value={s}>{s.charAt(0).toUpperCase()+s.slice(1)}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label style={{fontSize:10.5,color:"var(--muted)",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:0.8,fontWeight:500}}>Layers</label>
+              <select value={layers} onChange={e=>setLayers(e.target.value)} style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1px solid var(--border)",background:"var(--panel)",color:"var(--text)",fontSize:13}}>
+                {["1","2","3","4","5","6"].map(n=><option key={n} value={n}>{n} layer{+n>1?"s":""}</option>)}
+              </select>
+            </div>
+
+            <div style={{borderTop:"1px solid var(--border)",paddingTop:10}}>
+              <label style={{fontSize:10.5,color:"var(--muted)",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:0.8,fontWeight:500}}>Multiplier</label>
+              {mult!==null
+                ?<div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{flex:1,padding:"7px 12px",borderRadius:8,border:"1px solid var(--border)",background:"var(--panel)",fontSize:14,fontWeight:600,color:"var(--gold)"}}>× {mult.toFixed(1)}</div>
+                    <span style={{fontSize:11,color:"#357A52",whiteSpace:"nowrap"}}>✓ Set</span>
+                  </div>
+                :<div style={{padding:"7px 12px",borderRadius:8,border:"1px solid #F0C0BB",background:"#FDEBE9",fontSize:13,color:"#B03A2E"}}>
+                    Not set — go to <strong>Settings → Pricing setup</strong> to add this size/shape multiplier.
+                  </div>
+              }
+            </div>
+
+            {mult!==null&&<div style={{background:"var(--panel)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px"}}>
+              <div style={{fontSize:11,color:"var(--muted)",marginBottom:3}}>{size}" · {shape} · {layers} layer{+layers>1?"s":""}</div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
+                <span style={{fontSize:12,color:"var(--muted)"}}>Total ingredient cost</span>
+                <span style={{fontSize:20,fontWeight:700,color:"var(--gold)"}}>{fmt(r.ing.reduce((s,ing)=>{const it=inventory.find(x=>x.id===ing.iid);return s+(it?it.cost*ing.qty*factor:0)},0))}</span>
+              </div>
+            </div>}
+
+          </div>
+        </div>
+
+      </div>
     </div>}
   </Card>
 }
@@ -506,7 +591,7 @@ function MasterList({inventory,setInventory,recipes,setRecipes,user}){
         <span style={{fontSize:13,color:"var(--muted)"}}>{recipes.length} recipes · click any card to expand</span>
         {isOwner&&<Btn small onClick={()=>openRecipe(null)}>+ New Recipe</Btn>}
       </div>
-      {recipes.map(r=><RecipeCard key={r.id} r={r} inventory={inventory} isOwner={isOwner} onEdit={()=>openRecipe(r)} onCopy={()=>openRecipe({...r,id:uid(),name:r.name+" (copy)"})} onDelete={()=>deleteRecipe(r.id)}/>)}
+      {recipes.map(r=><RecipeCard key={r.id} r={r} inventory={inventory} isOwner={isOwner} onEdit={()=>openRecipe(r)} onDelete={()=>deleteRecipe(r.id)}/>)}
       {recipeModal&&<Modal title={recipeModal.name?"Edit Recipe":"New Recipe"} onClose={()=>setRecipeModal(null)}>
         <Inp label="Recipe Name * (e.g. Vanilla Cake, Red Velvet)" value={recipeModal.name} onChange={v=>setRecipeModal(r=>({...r,name:v}))}/>
         <Inp label="Notes (optional)" value={recipeModal.notes||""} onChange={v=>setRecipeModal(r=>({...r,notes:v}))} placeholder="e.g. Quantities for 1 layer"/>
