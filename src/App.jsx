@@ -144,7 +144,7 @@ async function callClaude(messages, system="") {
     headers["x-api-key"] = import.meta.env.VITE_ANTHROPIC_KEY
     headers["anthropic-version"] = "2023-06-01"
   }
-  const res = await fetch(endpoint, {method:"POST",headers,body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:2000,system,messages})})
+  const res = await fetch(endpoint, {method:"POST",headers,body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:2000,system,messages})})
   const data = await res.json()
   if (data.error) throw new Error(data.error.message)
   return data.content?.[0]?.text || ""
@@ -349,7 +349,12 @@ Return ONLY valid JSON array, no markdown:
       setAiMapping(`AI identified columns: ${mappedCols}`)
       setImportStep(3)
     }catch(err){
-      showMsg("AI could not read this data: "+err.message,"red")
+      const msg=err.message||"Unknown error"
+      if(msg.toLowerCase().includes("api")||msg.toLowerCase().includes("key")||msg.toLowerCase().includes("auth")){
+        showMsg("API key error — please check your ANTHROPIC_API_KEY in Netlify environment variables and redeploy.","red")
+      } else {
+        showMsg("Could not read data: "+msg+" — try simplifying your paste (remove formulas, merged cells).","red")
+      }
       setImportStep(1)
     }
   }
