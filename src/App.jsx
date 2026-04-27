@@ -307,6 +307,213 @@ function Dashboard({productions,inventory,expenses,setView,user}){
 }
 
 // ═══════════════════════════════════════════════════════════
+//  INVENTORY TAB — bulk price model with AI smart import
+// ═══════════════════════════════════════════════════════════
+function InventoryTab({inventory,setInventory,isOwner,showMsg,addMode,setAddMode,newItem,setNewItem,addItem,editId,setEditId,editRow,setEditRow,saveEdit,deleteItem,pasteMode,setPasteMode,pasteText,setPasteText}){
+  const [importStep,setImportStep]=useState(1) // 1=paste 2=loading 3=preview 4=done
+  const [preview,setPreview]=useState([])
+  const [aiMapping,setAiMapping]=useState("")
+  const lowStock=inventory.filter(i=>i.stock<=(i.minStock||5))
+  const totalValue=inventory.reduce((s,i)=>s+(i.cost||0)*(i.stock||0),0)
+
+  const runAIImport=async()=>{
+    if(!pasteText.trim())return
+    setImportStep(2)
+    try{
+      const raw=await callClaude([{role:"user",content:`You are helping import inventory data for a Nigerian bakery app.
+The user has pasted this data from their Excel sheet:
+
+${pasteText}
+
+Analyze the columns and extract inventory items. The app needs these fields:
+- name: ingredient name
+- cat: category (Dry Goods, Dairy, Fats & Oils, Packaging, Decoration, Flavoring, Chocolate, Colorings, Fruits)
+- unit: measurement unit (kg, g, L, ml, pcs, pack, roll, bottle, set)
+- unitSize: how much is in one package/bag/crate (e.g. 50 for a 50kg bag, 30 for a 30-piece crate)
+- qtyBought: how many packages were bought (e.g. 3 bags, 6 crates)
+- bulkPrice: total price paid for one package/unit (e.g. 57000 for one 50kg bag)
+- minStock: minimum stock level before alert fires (suggest sensible default based on item type)
+
+Calculate cost per unit = bulkPrice / unitSize.
+Calculate stock = unitSize × qtyBought.
+
+If some columns are missing or unclear, make sensible assumptions and note them.
+If qtyBought is missing, assume 1.
+If unitSize is missing but item is clearly sold in standard units, use 1.
+
+Return ONLY valid JSON array, no markdown:
+[{"name":"Flour","cat":"Dry Goods","unit":"kg","unitSize":50,"qtyBought":3,"bulkPrice":57000,"minStock":10,"stock":150,"cost":1140,"note":""}]`}],"Parse bakery inventory from Excel paste. Return JSON array only.")
+      const parsed=JSON.parse(raw.replace(/```json|```/g,"").trim())
+      setPreview(parsed.map(p=>({...p,id:uid(),approved:true})))
+      const mappedCols=[...new Set(["name","unit","unitSize","qtyBought","bulkPrice"].filter(k=>parsed[0]&&parsed[0][k]!==undefined))].join(" · ")
+      setAiMapping(`AI identified columns: ${mappedCols}`)
+      setImportStep(3)
+    }catch(err){
+      showMsg("AI could not read this data: "+err.message,"red")
+      setImportStep(1)
+    }
+  }
+
+  const confirmImport=async()=>{
+    const approved=preview.filter(p=>p.approved)
+    const updated=[...inventory,...approved.filter(ni=>!inventory.find(i=>i.name.toLowerCase()===ni.name.toLowerCase()))]
+    setInventory(updated);await saveInventory(updated)
+    setImportStep(4)
+    showMsg(`✓ ${approved.length} items imported successfully`,"green")
+  }
+
+  const resetImport=()=>{setImportStep(1);setPreview([]);setPasteText("");setPasteMode(false)}
+
+  return <div>
+    {/* HEADER ROW */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
+      <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+        <span style={{fontSize:13,color:"var(--muted)"}}>{inventory.length} items</span>
+        {isOwner&&<span style={{fontSize:13,color:"var(--muted)"}}>Stock value: <strong style={{color:"var(--text)"}}>{fmt(totalValue)}</strong></span>}
+        {lowStock.length>0&&<span onClick={()=>window.location.hash="shopping"} style={{fontSize:12.5,color:"#B03A2E",fontWeight:600,cursor:"pointer",background:"#FDEBE9",padding:"3px 10px",borderRadius:20}}>⚠ {lowStock.length} low stock → Shopping List</span>}
+      </div>
+      {isOwner&&<div style={{display:"flex",gap:8}}>
+        <Btn small variant="ghost" onClick={()=>{setPasteMode(p=>!p);setImportStep(1)}}>📋 Paste from Excel</Btn>
+        <Btn small onClick={()=>setAddMode(a=>!a)}>+ Add Item</Btn>
+      </div>}
+    </div>
+
+    {/* SMART PASTE IMPORT */}
+    {pasteMode&&isOwner&&<Card style={{marginBottom:14,borderColor:"var(--gold)",background:"#FDFAF4"}}>
+      {/* Step indicators */}
+      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:16,flexWrap:"wrap"}}>
+        {[["1","Paste data"],["2","AI reads it"],["3","Preview"],["✓","Imported"]].map(([num,lbl],i)=>{
+          const idx=i+1
+          const isDone=importStep>idx
+          const isActive=importStep===idx
+          return <div key={num} style={{display:"flex",alignItems:"center",gap:5}}>
+            <div style={{width:22,height:22,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,background:isDone?"#357A52":isActive?"var(--gold)":"var(--border)",color:isDone||isActive?"#fff":"var(--muted)",flexShrink:0}}>{isDone?"✓":num}</div>
+            <span style={{fontSize:12,color:isActive?"var(--text)":"var(--muted)",fontWeight:isActive?500:400}}>{lbl}</span>
+            {i<3&&<div style={{width:20,height:1,background:"var(--border)",margin:"0 2px"}}/>}
+          </div>
+        })}
+      </div>
+
+      {/* STEP 1 — paste */}
+      {importStep===1&&<div>
+        <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:10,lineHeight:1.7}}>Copy any columns from your Excel — in any order, with any column names. AI will figure out what each column means. Missing columns are fine.</div>
+        <div style={{padding:"8px 12px",background:"#FFF9EE",borderRadius:7,fontSize:12,color:"#9A6C1A",marginBottom:10}}>💡 Just copy from Excel as-is. No reformatting needed.</div>
+        <textarea value={pasteText} onChange={e=>setPasteText(e.target.value)} placeholder={"Paste your Excel data here — any format works.\n\nExample:\nItem\t\tBulk Price\tUnit\tPack Size\tQty Bought\nFlour\t\t57000\t\tkg\t50\t\t3\nSugar\t\t75000\t\tkg\t50\t\t1\nEggs\t\t6200\t\tpcs\t30\t\t6"} style={{width:"100%",minHeight:130,padding:"10px",borderRadius:8,border:"1px solid var(--border)",background:"var(--panel)",fontSize:12,fontFamily:"monospace",color:"var(--text)",boxSizing:"border-box",resize:"vertical",outline:"none",marginBottom:10}}/>
+        <div style={{display:"flex",gap:8}}>
+          <Btn onClick={runAIImport} disabled={!pasteText.trim()}>✦ Let AI Read This →</Btn>
+          <Btn variant="ghost" onClick={resetImport}>Cancel</Btn>
+        </div>
+      </div>}
+
+      {/* STEP 2 — loading */}
+      {importStep===2&&<div style={{textAlign:"center",padding:"24px 0"}}>
+        <div style={{fontSize:13,color:"var(--muted)",marginBottom:12}}>✦ AI is reading your data…</div>
+        <div style={{fontSize:12,color:"var(--muted)"}}>Identifying columns · Matching items · Calculating cost per unit</div>
+        <Spinner/>
+      </div>}
+
+      {/* STEP 3 — preview */}
+      {importStep===3&&preview.length>0&&<div>
+        <div style={{padding:"8px 12px",background:"#F5F0E4",borderRadius:7,fontSize:12,color:"#5C3D1A",marginBottom:12}}>{aiMapping} · Toggle off any row you do not want to import</div>
+        <div style={{overflowX:"auto",marginBottom:12}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12.5}}>
+            <thead><tr style={{background:"#EDE5D6"}}>{["","Item","Unit","Pack Size","Qty Bought","Bulk Price","Min Alert","Stock","Cost/Unit ✦","Note"].map(h=><th key={h} style={{padding:"7px 8px",textAlign:"left",fontSize:10,textTransform:"uppercase",letterSpacing:0.8,color:"var(--muted)",fontWeight:500,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+            <tbody>{preview.map((p,i)=><tr key={p.id} style={{background:i%2===0?"var(--panel)":"#F8F3EA",opacity:p.approved?1:0.4}}>
+              <td style={{padding:"6px 8px"}}><div onClick={()=>setPreview(prev=>prev.map((x,j)=>j===i?{...x,approved:!x.approved}:x))} style={{width:30,height:16,borderRadius:8,background:p.approved?"#357A52":"var(--border)",cursor:"pointer",position:"relative"}}><div style={{width:12,height:12,borderRadius:"50%",background:"white",position:"absolute",top:2,left:p.approved?16:2,transition:"left 0.2s"}}/></div></td>
+              <td style={{padding:"6px 8px",fontWeight:500}}>{p.name}</td>
+              <td style={{padding:"6px 8px",color:"var(--muted)"}}>{p.unit}</td>
+              <td style={{padding:"6px 8px",color:"var(--muted)"}}>{p.unitSize} {p.unit}</td>
+              <td style={{padding:"6px 8px",color:"var(--muted)"}}>{p.qtyBought}</td>
+              <td style={{padding:"6px 8px"}}>{fmt(p.bulkPrice)}</td>
+              <td style={{padding:"6px 8px",color:"var(--muted)"}}>{p.minStock} {p.unit}</td>
+              <td style={{padding:"6px 8px",fontWeight:500,color:"#357A52"}}>{p.stock} {p.unit}</td>
+              <td style={{padding:"6px 8px",fontWeight:500,color:"var(--gold)"}}>{fmt(p.cost)}/{p.unit}</td>
+              <td style={{padding:"6px 8px",fontSize:11,color:"var(--muted)",fontStyle:"italic"}}>{p.note||""}</td>
+            </tr>)}</tbody>
+          </table>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <Btn variant="success" onClick={confirmImport} disabled={!preview.some(p=>p.approved)}>✓ Confirm & Import {preview.filter(p=>p.approved).length} Items</Btn>
+          <Btn variant="ghost" onClick={()=>setImportStep(1)}>← Edit Paste</Btn>
+        </div>
+      </div>}
+
+      {/* STEP 4 — done */}
+      {importStep===4&&<div style={{textAlign:"center",padding:"16px 0"}}>
+        <div style={{fontSize:16,color:"#357A52",fontWeight:600,marginBottom:6}}>✓ Import complete</div>
+        <div style={{fontSize:13,color:"var(--muted)",marginBottom:14}}>All items are live in your inventory.</div>
+        <Btn variant="ghost" onClick={resetImport}>Import More</Btn>
+      </div>}
+    </Card>}
+
+    {/* ADD ITEM FORM */}
+    {addMode&&isOwner&&<Card style={{marginBottom:14,background:"#FFF9EE",borderColor:"var(--gold)"}}>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:12}}>Add New Item</div>
+      <div style={{padding:"7px 12px",background:"#FFF9EE",borderRadius:7,fontSize:12,color:"#9A6C1A",marginBottom:12,border:"1px solid #E8D5A3"}}>Enter what you bought from the market. Cost per unit and stock are calculated automatically.</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10}}>
+        <Inp label="Item Name *" value={newItem.name} onChange={v=>setNewItem(p=>({...p,name:v}))} placeholder="e.g. Flour"/>
+        <Inp label="Category" value={newItem.cat||""} onChange={v=>setNewItem(p=>({...p,cat:v}))} placeholder="Dry Goods…"/>
+        <Sel label="Unit *" value={newItem.unit||"kg"} onChange={v=>setNewItem(p=>({...p,unit:v}))} options={["kg","g","L","ml","pcs","pack","bottle","roll","set"].map(u=>({value:u,label:u}))}/>
+        <Inp label="Pack/Bag Size *" type="number" value={newItem.unitSize||""} onChange={v=>setNewItem(p=>({...p,unitSize:v}))} placeholder="e.g. 50 (for 50kg bag)"/>
+        <Inp label="Qty Bought *" type="number" value={newItem.qtyBought||""} onChange={v=>setNewItem(p=>({...p,qtyBought:v}))} placeholder="e.g. 3 (bags)"/>
+        <Inp label="Bulk Price (₦) *" type="number" value={newItem.bulkPrice||""} onChange={v=>setNewItem(p=>({...p,bulkPrice:v}))} placeholder="e.g. 57000"/>
+        <Inp label="Min Alert Level" type="number" value={newItem.minStock||""} onChange={v=>setNewItem(p=>({...p,minStock:v}))} placeholder="e.g. 10"/>
+      </div>
+      {newItem.bulkPrice&&newItem.unitSize&&<div style={{padding:"7px 12px",background:"#EEF8F3",borderRadius:7,fontSize:13,marginBottom:10,border:"1px solid #C2E0CF"}}>
+        Cost per {newItem.unit||"unit"}: <strong style={{color:"var(--gold)"}}>{fmt(+newItem.bulkPrice/(+newItem.unitSize||1))}</strong> · Opening stock: <strong>{((+newItem.unitSize||0)*(+newItem.qtyBought||0)).toFixed(3)} {newItem.unit||""}</strong>
+      </div>}
+      <div style={{display:"flex",gap:8}}><Btn onClick={addItem}>Save Item</Btn><Btn variant="ghost" onClick={()=>setAddMode(false)}>Cancel</Btn></div>
+    </Card>}
+
+    {/* MAIN TABLE */}
+    <div style={{overflowX:"auto"}}>
+      <table style={{width:"100%",borderCollapse:"collapse",background:"var(--panel)",borderRadius:10,overflow:"hidden",border:"1px solid var(--border)"}}>
+        <TH cols={["Item","Unit","Pack Size","Qty Bought","Bulk Price","Min Alert","Stock","Cost/Unit ✦",...(isOwner?["Actions"]:[])]}/>
+        <tbody>{inventory.map((item,i)=>{
+          const isLow=item.stock<=(item.minStock||5)
+          const editing=editId===item.id
+          return <tr key={item.id} style={{background:isLow?"#FFF9EE":i%2===0?"var(--panel)":"#F8F3EA"}}>
+            {editing?<>
+              <td style={{padding:"6px 8px"}}><input value={editRow.name||""} onChange={e=>setEditRow(r=>({...r,name:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12}}/></td>
+              <td style={{padding:"6px 8px"}}><input value={editRow.unit||""} onChange={e=>setEditRow(r=>({...r,unit:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12,width:55}}/></td>
+              <td style={{padding:"6px 8px"}}><input type="number" value={editRow.unitSize||""} onChange={e=>setEditRow(r=>({...r,unitSize:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12,width:70}}/></td>
+              <td style={{padding:"6px 8px"}}><input type="number" value={editRow.qtyBought||""} onChange={e=>setEditRow(r=>({...r,qtyBought:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12,width:60}}/></td>
+              <td style={{padding:"6px 8px"}}><input type="number" value={editRow.bulkPrice||""} onChange={e=>setEditRow(r=>({...r,bulkPrice:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12}}/></td>
+              <td style={{padding:"6px 8px"}}><input type="number" value={editRow.minStock||""} onChange={e=>setEditRow(r=>({...r,minStock:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12,width:55}}/></td>
+              <td style={{padding:"6px 8px",fontSize:12,color:"var(--muted)"}}>{((+editRow.unitSize||0)*(+editRow.qtyBought||0)).toFixed(1)} {editRow.unit}</td>
+              <td style={{padding:"6px 8px",fontSize:12,color:"var(--gold)",fontWeight:500}}>{editRow.bulkPrice&&editRow.unitSize?fmt(+editRow.bulkPrice/(+editRow.unitSize||1)):"—"}</td>
+              <td style={{padding:"6px 8px"}}><div style={{display:"flex",gap:4}}>
+                <Btn small variant="success" onClick={()=>{
+                  const cost=parseFloat((+editRow.bulkPrice/(+editRow.unitSize||1)).toFixed(2))
+                  const stock=parseFloat(((+editRow.unitSize)*(+editRow.qtyBought)).toFixed(3))
+                  setEditRow(r=>({...r,cost,stock}))
+                  saveEdit()
+                }}>✓</Btn>
+                <Btn small variant="ghost" onClick={()=>setEditId(null)}>✗</Btn>
+              </div></td>
+            </>:<>
+              <td style={{padding:"9px 10px",fontWeight:500,fontSize:13}}>{item.name}<div style={{fontSize:10.5,color:"var(--muted)",marginTop:1}}>{item.cat}</div></td>
+              <td style={{padding:"9px 10px",color:"var(--muted)",fontSize:13}}>{item.unit}</td>
+              <td style={{padding:"9px 10px",fontSize:13}}>{item.unitSize||"—"} {item.unit}</td>
+              <td style={{padding:"9px 10px",fontSize:13,color:"var(--muted)"}}>{item.qtyBought||"—"}</td>
+              <td style={{padding:"9px 10px",fontSize:13}}>{item.bulkPrice?fmt(item.bulkPrice):"—"}</td>
+              <td style={{padding:"9px 10px",fontSize:13,color:"var(--muted)"}}>{item.minStock||5} {item.unit}</td>
+              <td style={{padding:"9px 10px",fontSize:13,fontWeight:600,color:isLow?"#B03A2E":"#357A52"}}>{item.stock} {item.unit}{isLow&&" ⚠"}</td>
+              <td style={{padding:"9px 10px",fontSize:13,fontWeight:500,color:"var(--gold)"}}>{fmt(item.cost)}/{item.unit}</td>
+              {isOwner&&<td style={{padding:"9px 10px"}}><div style={{display:"flex",gap:4}}>
+                <Btn small variant="ghost" onClick={()=>{setEditId(item.id);setEditRow({...item})}}>✎</Btn>
+                <Btn small variant="danger" onClick={()=>deleteItem(item.id)}>×</Btn>
+              </div></td>}
+            </>}
+          </tr>
+        })}</tbody>
+      </table>
+    </div>
+    <div style={{marginTop:8,fontSize:11.5,color:"var(--muted)",lineHeight:1.7}}>✦ Cost per unit = bulk price ÷ pack size (auto-calculated). Stock reduces automatically as production orders are confirmed. Restock through the Receipt Scanner.</div>
+  </div>
+}
+
+// ═══════════════════════════════════════════════════════════
 //  RECIPE CARD (standalone component — avoids hook-in-map bug)
 // ═══════════════════════════════════════════════════════════
 function RecipeCard({r, inventory, isOwner, onEdit, onDelete}){
@@ -538,7 +745,7 @@ function MasterList({inventory,setInventory,recipes,setRecipes,user}){
   const [editId,setEditId]=useState(null)
   const [editRow,setEditRow]=useState({})
   const [addMode,setAddMode]=useState(false)
-  const [newItem,setNewItem]=useState({name:"",cat:"",unit:"kg",cost:"",stock:"",minStock:"3"})
+  const [newItem,setNewItem]=useState({name:"",cat:"",unit:"kg",unitSize:"",qtyBought:"",bulkPrice:"",minStock:"",stock:0,cost:0})
   const [msg,setMsg]=useState("")
   const [msgColor,setMsgColor]=useState("gold")
   const [recipeModal,setRecipeModal]=useState(null)
@@ -560,9 +767,14 @@ function MasterList({inventory,setInventory,recipes,setRecipes,user}){
     const updated=inventory.filter(i=>i.id!==id); setInventory(updated); await saveInventory(updated); showMsg("Item deleted")
   }
   const addItem = async () => {
-    if(!newItem.name||!newItem.cost)return showMsg("Name and cost are required")
-    const updated=[...inventory,{...newItem,id:uid(),cost:+newItem.cost,stock:+newItem.stock||0,minStock:+newItem.minStock||2}]
-    setInventory(updated); await saveInventory(updated); setNewItem({name:"",cat:"",unit:"kg",cost:"",stock:"",minStock:"3"}); setAddMode(false); showMsg("✓ Item added","green")
+    if(!newItem.name||!newItem.bulkPrice||!newItem.unitSize||!newItem.qtyBought)return showMsg("Name, bulk price, unit size and qty bought are required")
+    const cost=parseFloat((+newItem.bulkPrice/(+newItem.unitSize||1)).toFixed(2))
+    const stock=parseFloat(((+newItem.unitSize)*(+newItem.qtyBought)).toFixed(3))
+    const item={id:uid(),name:newItem.name,cat:newItem.cat||"General",unit:newItem.unit||"kg",unitSize:+newItem.unitSize,qtyBought:+newItem.qtyBought,bulkPrice:+newItem.bulkPrice,minStock:+newItem.minStock||5,stock,cost}
+    const updated=[...inventory,item]
+    setInventory(updated);await saveInventory(updated)
+    setNewItem({name:"",cat:"",unit:"kg",unitSize:"",qtyBought:"",bulkPrice:"",minStock:"",stock:0,cost:0})
+    setAddMode(false);showMsg("✓ Item added — cost/unit: "+fmt(cost),"green")
   }
 
   const handleCSV = e => {
@@ -609,72 +821,19 @@ function MasterList({inventory,setInventory,recipes,setRecipes,user}){
     <Tabs tabs={[{v:"inventory",l:"Inventory"},{v:"recipes",l:"Base Recipes"},{v:"decorations",l:"Decoration Extras"}]} active={tab} onChange={setTab}/>
 
     {/* ── INVENTORY ── */}
-    {tab==="inventory"&&<div>
-      {isOwner&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
-        <span style={{fontSize:13,color:"var(--muted)"}}>{inventory.length} items · {fmt(inventory.reduce((s,i)=>s+i.cost*i.stock,0))} total value</span>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <Btn small variant="ghost" onClick={()=>{setPasteMode(p=>!p);setPasteText("")}}>📋 Paste CSV Data</Btn>
-          <Btn small onClick={()=>setAddMode(!addMode)}>+ Add Item</Btn>
-        </div>
-      </div>}
-      <div style={{fontSize:11.5,color:"var(--muted)",marginBottom:8}}>CSV columns: name, category, unit, cost, stock, minStock — column names are flexible, we match automatically</div>
-      {pasteMode&&<Card style={{marginBottom:12,background:"#FFF9EE",borderColor:"var(--gold)"}}>
-        <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:8}}>Paste CSV Data</div>
-        <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:10,lineHeight:1.6}}>Copy from Excel or Google Sheets and paste here. First row should be column headers. Columns can be in any order.</div>
-        <textarea value={pasteText} onChange={e=>setPasteText(e.target.value)} placeholder={"name,category,unit,cost,stock,minStock\nFlour,Dry Goods,kg,1140,50,10\nSugar,Dry Goods,kg,1500,50,10"} style={{width:"100%",minHeight:120,padding:"10px",borderRadius:8,border:"1px solid var(--border)",background:"var(--panel)",fontSize:12.5,fontFamily:"monospace",color:"var(--text)",boxSizing:"border-box",resize:"vertical",outline:"none",marginBottom:10}}/>
-        <div style={{display:"flex",gap:8}}>
-          <Btn onClick={async()=>{
-            if(!pasteText.trim())return
-            try{const items=parseCSV(pasteText);if(items.length===0){showMsg("No items found — check your column headers","red");return}const updated=[...inventory,...items.filter(ni=>!inventory.find(i=>i.name.toLowerCase()===ni.name.toLowerCase()))];setInventory(updated);await saveInventory(updated);showMsg(`✓ ${items.length} items imported (${updated.length-inventory.length} new added, duplicates skipped)`,"green");setPasteMode(false);setPasteText("")}catch(err){showMsg("Import failed: "+err.message,"red")}
-          }}>Import</Btn>
-          <Btn variant="ghost" onClick={()=>{setPasteMode(false);setPasteText("")}}>Cancel</Btn>
-        </div>
-      </Card>}
-      {addMode&&isOwner&&<Card style={{marginBottom:12,background:"#FFF9EE",borderColor:"var(--gold)"}}>
-        <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:12}}>New Item</div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10}}>
-          <Inp label="Name *" value={newItem.name} onChange={v=>setNewItem(p=>({...p,name:v}))} placeholder="Ingredient name"/>
-          <Inp label="Category" value={newItem.cat} onChange={v=>setNewItem(p=>({...p,cat:v}))} placeholder="Dry Goods…"/>
-          <Inp label="Unit" value={newItem.unit} onChange={v=>setNewItem(p=>({...p,unit:v}))} placeholder="kg/pcs/L"/>
-          <Inp label="Cost/Unit (₦) *" type="number" value={newItem.cost} onChange={v=>setNewItem(p=>({...p,cost:v}))}/>
-          <Inp label="Opening Stock" type="number" value={newItem.stock} onChange={v=>setNewItem(p=>({...p,stock:v}))}/>
-          <Inp label="Min Stock Alert" type="number" value={newItem.minStock} onChange={v=>setNewItem(p=>({...p,minStock:v}))}/>
-        </div>
-        <div style={{display:"flex",gap:8}}><Btn onClick={addItem}>Save</Btn><Btn variant="ghost" onClick={()=>setAddMode(false)}>Cancel</Btn></div>
-      </Card>}
-      <div style={{overflowX:"auto"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",background:"var(--panel)",borderRadius:10,overflow:"hidden",border:"1px solid var(--border)"}}>
-          <TH cols={["Item","Category","Unit","Cost/Unit","Stock","Min","Value",...(isOwner?["Restock","Actions"]:[])]}/>
-          <tbody>{inventory.map((item,i)=>{
-            const editing=editId===item.id
-            return <tr key={item.id} style={{background:i%2===0?"var(--panel)":"#F8F3EA"}}>
-              {editing?<>
-                <td style={{padding:"6px 8px"}}><input value={editRow.name} onChange={e=>setEditRow(r=>({...r,name:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12}}/></td>
-                <td style={{padding:"6px 8px"}}><input value={editRow.cat} onChange={e=>setEditRow(r=>({...r,cat:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12}}/></td>
-                <td style={{padding:"6px 8px"}}><input value={editRow.unit} onChange={e=>setEditRow(r=>({...r,unit:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12,width:60}}/></td>
-                <td style={{padding:"6px 8px"}}><input type="number" value={editRow.cost} onChange={e=>setEditRow(r=>({...r,cost:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12}}/></td>
-                <td style={{padding:"6px 8px"}}><input type="number" value={editRow.stock} onChange={e=>setEditRow(r=>({...r,stock:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12}}/></td>
-                <td style={{padding:"6px 8px"}}><input type="number" value={editRow.minStock} onChange={e=>setEditRow(r=>({...r,minStock:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12,width:50}}/></td>
-                <td style={{padding:"6px 8px",fontSize:12}}>{fmt(editRow.cost*editRow.stock)}</td>
-                <td colSpan={2} style={{padding:"6px 8px"}}><div style={{display:"flex",gap:4}}><Btn small variant="success" onClick={saveEdit}>✓</Btn><Btn small variant="ghost" onClick={()=>setEditId(null)}>✗</Btn></div></td>
-              </>:<>
-                <td style={{padding:"9px 10px",fontWeight:500,fontSize:13}}>{item.name}</td>
-                <td style={{padding:"9px 10px",color:"var(--muted)",fontSize:12}}>{item.cat}</td>
-                <td style={{padding:"9px 10px",fontSize:13}}>{item.unit}</td>
-                <td style={{padding:"9px 10px",fontSize:13}}>{fmt(item.cost)}</td>
-                <td style={{padding:"9px 10px",color:item.stock<=(item.minStock||3)?"#B03A2E":"var(--text)",fontWeight:item.stock<=(item.minStock||3)?600:400,fontSize:13}}>{item.stock}</td>
-                <td style={{padding:"9px 10px",color:"var(--muted)",fontSize:12}}>{item.minStock||2}</td>
-                <td style={{padding:"9px 10px",color:"var(--gold)",fontWeight:500,fontSize:13}}>{fmt(item.cost*item.stock)}</td>
-                {isOwner&&<>
-                  <td style={{padding:"9px 10px"}}><RestockCell id={item.id} unit={item.unit} onRestock={restock}/></td>
-                  <td style={{padding:"9px 10px"}}><div style={{display:"flex",gap:4}}><Btn small variant="ghost" onClick={()=>startEdit(item)}>✎</Btn><Btn small variant="danger" onClick={()=>deleteItem(item.id)}>×</Btn></div></td>
-                </>}
-              </>}
-            </tr>
-          })}</tbody>
-        </table>
-      </div>
-    </div>}
+    {tab==="inventory"&&<InventoryTab
+      inventory={inventory} setInventory={setInventory}
+      isOwner={isOwner}
+      showMsg={showMsg}
+      addMode={addMode} setAddMode={setAddMode}
+      newItem={newItem} setNewItem={setNewItem}
+      addItem={addItem}
+      editId={editId} setEditId={setEditId}
+      editRow={editRow} setEditRow={setEditRow}
+      saveEdit={saveEdit} deleteItem={deleteItem}
+      pasteMode={pasteMode} setPasteMode={setPasteMode}
+      pasteText={pasteText} setPasteText={setPasteText}
+    />}
 
     {/* ── RECIPES ── */}
     {tab==="recipes"&&<div>
