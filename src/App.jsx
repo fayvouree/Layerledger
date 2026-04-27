@@ -144,9 +144,10 @@ async function callClaude(messages, system="") {
     headers["x-api-key"] = import.meta.env.VITE_ANTHROPIC_KEY
     headers["anthropic-version"] = "2023-06-01"
   }
-  const res = await fetch(endpoint, {method:"POST",headers,body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:2000,system,messages})})
+  const res = await fetch(endpoint, {method:"POST",headers,body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:4000,system,messages})})
+  if (!res.ok && res.status===404) throw new Error("Function not found (404) — redeploy on Netlify")
   const data = await res.json()
-  if (data.error) throw new Error(data.error.message)
+  if (data.error) throw new Error("("+res.status+") "+JSON.stringify(data.error))
   return data.content?.[0]?.text || ""
 }
 
@@ -320,41 +321,58 @@ function InventoryTab({inventory,setInventory,isOwner,showMsg,addMode,setAddMode
     if(!pasteText.trim())return
     setImportStep(2)
     try{
-      const raw=await callClaude([{role:"user",content:`You are helping import inventory data for a Nigerian bakery app.
-The user has pasted this data from their Excel sheet:
+      // Parse paste into rows client-side
+      const lines=pasteText.trim().split(/\r?\n/).filter(l=>l.trim())
+      if(lines.length<2){showMsg("Not enough data — need at least a header row and one data row","red");setImportStep(1);return}
 
-${pasteText}
+      // Detect delimiter
+      const delim=lines[0].includes("\t")?"\t":lines[0].includes(";")?";":",";
+      const rows=lines.map(l=>l.split(delim).map(c=>c.trim().replace(/^["]+|["]+$/g,"")))
+      const headers=rows[0]
+      const dataRows=rows.slice(1).filter(r=>r.some(c=>c.trim()))
 
-Analyze the columns and extract inventory items. The app needs these fields:
-- name: ingredient name
-- cat: category (Dry Goods, Dairy, Fats & Oils, Packaging, Decoration, Flavoring, Chocolate, Colorings, Fruits)
-- unit: measurement unit (kg, g, L, ml, pcs, pack, roll, bottle, set)
-- unitSize: how much is in one package/bag/crate (e.g. 50 for a 50kg bag, 30 for a 30-piece crate)
-- qtyBought: how many packages were bought (e.g. 3 bags, 6 crates)
-- bulkPrice: total price paid for one package/unit (e.g. 57000 for one 50kg bag)
-- minStock: minimum stock level before alert fires (suggest sensible default based on item type)
+      // Send ONLY headers + first 2 rows to AI — tiny request, tiny response
+      const sample=rows.slice(0,3).map(r=>r.join(" | ")).join("\n")
+      const raw=await callClaude([{role:"user",content:`Nigerian bakery inventory import. Column headers and sample rows:
+${sample}
 
-Calculate cost per unit = bulkPrice / unitSize.
-Calculate stock = unitSize × qtyBought.
+Map each column index (0-based) to these fields: name, unit, unitSize, qtyBought, bulkPrice, minStock, cat.
+If a field has no matching column, use -1.
+Return ONLY this JSON, nothing else:
+{"name":0,"unit":1,"unitSize":2,"qtyBought":3,"bulkPrice":4,"minStock":-1,"cat":-1}`}],"Map column indices. Return JSON only.")
 
-If some columns are missing or unclear, make sensible assumptions and note them.
-If qtyBought is missing, assume 1.
-If unitSize is missing but item is clearly sold in standard units, use 1.
+      const map=JSON.parse(raw.replace(/\`\`\`json|\`\`\`/g,"").trim())
+      setAiMapping(`AI mapped: ${Object.entries(map).filter(([,v])=>v>=0).map(([k,v])=>`${k}→col${v}`).join(", ")}`)
 
-Return ONLY valid JSON array, no markdown:
-[{"name":"Flour","cat":"Dry Goods","unit":"kg","unitSize":50,"qtyBought":3,"bulkPrice":57000,"minStock":10,"stock":150,"cost":1140,"note":""}]`}],"Parse bakery inventory from Excel paste. Return JSON array only.")
-      const parsed=JSON.parse(raw.replace(/```json|```/g,"").trim())
-      setPreview(parsed.map(p=>({...p,id:uid(),approved:true})))
-      const mappedCols=[...new Set(["name","unit","unitSize","qtyBought","bulkPrice"].filter(k=>parsed[0]&&parsed[0][k]!==undefined))].join(" · ")
-      setAiMapping(`AI identified columns: ${mappedCols}`)
+      // Build items client-side using the column map
+      const CAT_MAP={flour:"Dry Goods",sugar:"Dry Goods",oil:"Fats & Oils",butter:"Fats & Oils",margarine:"Fats & Oils",egg:"Dairy",milk:"Dairy",cream:"Dairy",cocoa:"Dry Goods",chocolate:"Chocolate",icing:"Dry Goods",baking:"Dry Goods",color:"Colorings",colour:"Colorings",fruit:"Fruits",carrot:"Fruits",flower:"Decoration",topper:"Decoration",ribbon:"Decoration",box:"Packaging",board:"Packaging",paper:"Packaging",wrap:"Packaging",flavour:"Flavoring",flavor:"Flavoring",essence:"Flavoring",vanilla:"Flavoring"}
+      const guesscat=(name)=>{const n=name.toLowerCase();for(const[k,v] of Object.entries(CAT_MAP)){if(n.includes(k))return v}return "General"}
+      const guessunit=(name)=>{const n=name.toLowerCase();if(n.includes("liter")||n.includes("litre")||n.includes("(l)"))return "L";if(n.includes("(ml)")||n.includes("ml"))return "ml";if(n.includes("(g)")||n.includes("gram"))return "g";if(n.includes("pcs")||n.includes("piece")||n.includes("crate")||n.includes("egg"))return "pcs";return "kg"}
+      const cleanNum=(s)=>parseFloat((s||"0").toString().replace(/[^0-9.]/g,""))||0
+
+      const items=dataRows.map(row=>{
+        const get=(field)=>map[field]>=0?row[map[field]]||"":""
+        const rawName=get("name")||row[0]||""
+        if(!rawName.trim())return null
+        // Extract unit from name if embedded e.g. "flour(kg)"
+        let name=rawName.replace(/\(kg\)|\(g\)|\(ml\)|\(l\)|\(liter\)|\(litre\)|\(pcs\)/gi,"").trim()
+        const embUnit=rawName.match(/\((kg|g|ml|l|liter|litre|pcs)\)/i)
+        const unit=get("unit")||(embUnit?embUnit[1].toLowerCase():guessunit(rawName))
+        const unitSize=cleanNum(get("unitSize"))||1
+        const qtyBought=cleanNum(get("qtyBought"))||1
+        const bulkPrice=cleanNum(get("bulkPrice"))
+        const cat=get("cat")||guesscat(name)
+        const minStock=cleanNum(get("minStock"))||5
+        const cost=unitSize>0?parseFloat((bulkPrice/unitSize).toFixed(2)):bulkPrice
+        const stock=parseFloat((unitSize*qtyBought).toFixed(3))
+        return {id:uid(),name,cat,unit:unit.toLowerCase().replace("liter","L").replace("litre","L"),unitSize,qtyBought,bulkPrice,minStock,stock,cost,approved:true,note:""}
+      }).filter(Boolean)
+
+      if(items.length===0){showMsg("No items could be parsed. Check your data has item names and prices.","red");setImportStep(1);return}
+      setPreview(items)
       setImportStep(3)
     }catch(err){
-      const msg=err.message||"Unknown error"
-      if(msg.toLowerCase().includes("api")||msg.toLowerCase().includes("key")||msg.toLowerCase().includes("auth")){
-        showMsg("API key error — please check your ANTHROPIC_API_KEY in Netlify environment variables and redeploy.","red")
-      } else {
-        showMsg("Could not read data: "+msg+" — try simplifying your paste (remove formulas, merged cells).","red")
-      }
+      showMsg("Import error: "+err.message,"red")
       setImportStep(1)
     }
   }
