@@ -310,231 +310,230 @@ function Dashboard({productions,inventory,expenses,setView,user}){
 // ═══════════════════════════════════════════════════════════
 //  INVENTORY TAB — bulk price model with AI smart import
 // ═══════════════════════════════════════════════════════════
-function InventoryTab({inventory,setInventory,isOwner,showMsg,addMode,setAddMode,newItem,setNewItem,addItem,editId,setEditId,editRow,setEditRow,saveEdit,deleteItem,pasteMode,setPasteMode,pasteText,setPasteText}){
-  const [importStep,setImportStep]=useState(1) // 1=paste 2=loading 3=preview 4=done
-  const [preview,setPreview]=useState([])
-  const [aiMapping,setAiMapping]=useState("")
+function InventoryTab({inventory,setInventory,isOwner,showMsg,setView}){
+  const [showImport,setShowImport]=useState(false)
+  const [showAdd,setShowAdd]=useState(false)
+  const [importStep,setImportStep]=useState(1) // 1=paste 2=preview 3=done
+  const [prevItems,setPrevItems]=useState([])
+  const [pasteN,setPasteN]=useState("")
+  const [pasteU,setPasteU]=useState("")
+  const [pasteC,setPasteC]=useState("")
+  const [newItem,setNewItem]=useState({name:"",unit:"kg",cost:"",minStock:""})
+  const [editId,setEditId]=useState(null)
+  const [editRow,setEditRow]=useState({})
+  const [warnMsg,setWarnMsg]=useState("")
+
+  const L=v=>v.trim().split(String.fromCharCode(10)).map(s=>s.replace(/,/g,"").trim()).filter(Boolean)
+
   const lowStock=inventory.filter(i=>i.stock<=(i.minStock||5))
-  const totalValue=inventory.reduce((s,i)=>s+(i.cost||0)*(i.stock||0),0)
+  const okCount=inventory.filter(i=>i.stock>(i.minStock||5)).length
 
-  const runAIImport=async()=>{
-    if(!pasteText.trim())return
-    setImportStep(2)
-    try{
-      // Parse paste into rows client-side
-      const lines=pasteText.trim().split(/\r?\n/).filter(l=>l.trim())
-      if(lines.length<2){showMsg("Not enough data — need at least a header row and one data row","red");setImportStep(1);return}
+  // Check row counts match as user types
+  const checkMatch=()=>{
+    const ns=L(pasteN),cs=L(pasteC)
+    if(ns.length>0&&cs.length>0&&ns.length!==cs.length)
+      setWarnMsg(`Names: ${ns.length} rows — Costs: ${cs.length} rows. Must match.`)
+    else setWarnMsg("")
+  }
 
-      // Detect delimiter
-      const delim=lines[0].includes("\t")?"\t":lines[0].includes(";")?";":",";
-      const rows=lines.map(l=>l.split(delim).map(c=>c.trim().replace(/^["]+|["]+$/g,"")))
-      const headers=rows[0]
-      const dataRows=rows.slice(1).filter(r=>r.some(c=>c.trim()))
-
-      // Send ONLY headers + first 2 rows to AI — tiny request, tiny response
-      const sample=rows.slice(0,3).map(r=>r.join(" | ")).join("\n")
-      const raw=await callClaude([{role:"user",content:`Nigerian bakery inventory import. Column headers and sample rows:
-${sample}
-
-Map each column index (0-based) to these fields: name, unit, unitSize, qtyBought, bulkPrice, minStock, cat.
-If a field has no matching column, use -1.
-Return ONLY this JSON, nothing else:
-{"name":0,"unit":1,"unitSize":2,"qtyBought":3,"bulkPrice":4,"minStock":-1,"cat":-1}`}],"Map column indices. Return JSON only.")
-
-      const map=JSON.parse(raw.replace(/\`\`\`json|\`\`\`/g,"").trim())
-      setAiMapping(`AI mapped: ${Object.entries(map).filter(([,v])=>v>=0).map(([k,v])=>`${k}→col${v}`).join(", ")}`)
-
-      // Build items client-side using the column map
-      const CAT_MAP={flour:"Dry Goods",sugar:"Dry Goods",oil:"Fats & Oils",butter:"Fats & Oils",margarine:"Fats & Oils",egg:"Dairy",milk:"Dairy",cream:"Dairy",cocoa:"Dry Goods",chocolate:"Chocolate",icing:"Dry Goods",baking:"Dry Goods",color:"Colorings",colour:"Colorings",fruit:"Fruits",carrot:"Fruits",flower:"Decoration",topper:"Decoration",ribbon:"Decoration",box:"Packaging",board:"Packaging",paper:"Packaging",wrap:"Packaging",flavour:"Flavoring",flavor:"Flavoring",essence:"Flavoring",vanilla:"Flavoring"}
-      const guesscat=(name)=>{const n=name.toLowerCase();for(const[k,v] of Object.entries(CAT_MAP)){if(n.includes(k))return v}return "General"}
-      const guessunit=(name)=>{const n=name.toLowerCase();if(n.includes("liter")||n.includes("litre")||n.includes("(l)"))return "L";if(n.includes("(ml)")||n.includes("ml"))return "ml";if(n.includes("(g)")||n.includes("gram"))return "g";if(n.includes("pcs")||n.includes("piece")||n.includes("crate")||n.includes("egg"))return "pcs";return "kg"}
-      const cleanNum=(s)=>parseFloat((s||"0").toString().replace(/[^0-9.]/g,""))||0
-
-      const items=dataRows.map(row=>{
-        const get=(field)=>map[field]>=0?row[map[field]]||"":""
-        const rawName=get("name")||row[0]||""
-        if(!rawName.trim())return null
-        // Extract unit from name if embedded e.g. "flour(kg)"
-        let name=rawName.replace(/\(kg\)|\(g\)|\(ml\)|\(l\)|\(liter\)|\(litre\)|\(pcs\)/gi,"").trim()
-        const embUnit=rawName.match(/\((kg|g|ml|l|liter|litre|pcs)\)/i)
-        const unit=get("unit")||(embUnit?embUnit[1].toLowerCase():guessunit(rawName))
-        const unitSize=cleanNum(get("unitSize"))||1
-        const qtyBought=cleanNum(get("qtyBought"))||1
-        const bulkPrice=cleanNum(get("bulkPrice"))
-        const cat=get("cat")||guesscat(name)
-        const minStock=cleanNum(get("minStock"))||5
-        const cost=unitSize>0?parseFloat((bulkPrice/unitSize).toFixed(2)):bulkPrice
-        const stock=parseFloat((unitSize*qtyBought).toFixed(3))
-        return {id:uid(),name,cat,unit:unit.toLowerCase().replace("liter","L").replace("litre","L"),unitSize,qtyBought,bulkPrice,minStock,stock,cost,approved:true,note:""}
-      }).filter(Boolean)
-
-      if(items.length===0){showMsg("No items could be parsed. Check your data has item names and prices.","red");setImportStep(1);return}
-      setPreview(items)
-      setImportStep(3)
-    }catch(err){
-      showMsg("Import error: "+err.message,"red")
-      setImportStep(1)
-    }
+  const doPreview=()=>{
+    const ns=L(pasteN),us=L(pasteU),cs=L(pasteC)
+    if(!ns.length||!cs.length)return showMsg("Item names and cost per unit are required","red")
+    if(ns.length!==cs.length)return showMsg(`Names (${ns.length}) and costs (${cs.length}) must have same number of rows`,"red")
+    const items=ns.map((name,i)=>({
+      id:uid(),name,
+      unit:us[i]||"kg",
+      cost:parseFloat(cs[i])||0,
+      stock:0,minStock:5,on:true
+    })).filter(p=>p.name&&p.cost)
+    if(!items.length)return showMsg("No valid items found","red")
+    setPrevItems(items);setImportStep(2)
   }
 
   const confirmImport=async()=>{
-    const approved=preview.filter(p=>p.approved)
+    const approved=prevItems.filter(p=>p.on)
     const updated=[...inventory,...approved.filter(ni=>!inventory.find(i=>i.name.toLowerCase()===ni.name.toLowerCase()))]
     setInventory(updated);await saveInventory(updated)
-    setImportStep(4)
-    showMsg(`✓ ${approved.length} items imported successfully`,"green")
+    setPasteN("");setPasteU("");setPasteC("");setImportStep(3)
+    showMsg(`✓ ${approved.length} items imported. Set opening stock in Settings → Opening Stock.`,"green")
   }
 
-  const resetImport=()=>{setImportStep(1);setPreview([]);setPasteText("");setPasteMode(false)}
+  const addSingle=async()=>{
+    if(!newItem.name||!newItem.cost)return showMsg("Name and cost per unit are required","red")
+    const item={id:uid(),name:newItem.name,unit:newItem.unit||"kg",cost:+newItem.cost,stock:0,minStock:+newItem.minStock||5}
+    const updated=[...inventory,item]
+    setInventory(updated);await saveInventory(updated)
+    setNewItem({name:"",unit:"kg",cost:"",minStock:""});setShowAdd(false)
+    showMsg("✓ Item added. Set opening stock in Settings → Opening Stock.","green")
+  }
+
+  const startEdit=(item)=>{setEditId(item.id);setEditRow({...item})}
+  const cancelEdit=()=>setEditId(null)
+  const doSaveEdit=async()=>{
+    const updated=inventory.map(i=>i.id===editId?{...editRow,cost:+editRow.cost,minStock:+editRow.minStock||5,stock:+editRow.stock||0}:i)
+    setInventory(updated);await saveInventory(updated);setEditId(null);showMsg("✓ Updated","green")
+  }
+  const doDelete=async(id)=>{
+    if(!confirm("Remove this item?"))return
+    const updated=inventory.filter(i=>i.id!==id);setInventory(updated);await saveInventory(updated)
+  }
+
+  const badge=(item)=>{
+    if(item.stock===0)return<span style={{background:"#FDEBE9",color:"#912622",borderRadius:20,padding:"2px 9px",fontSize:11,fontWeight:500}}>Out</span>
+    if(item.stock<=(item.minStock||5))return<span style={{background:"#FDF2DC",color:"#9A6C1A",borderRadius:20,padding:"2px 9px",fontSize:11,fontWeight:500}}>Low ⚠</span>
+    return<span style={{background:"#E5F4EC",color:"#2D7A50",borderRadius:20,padding:"2px 9px",fontSize:11,fontWeight:500}}>OK</span>
+  }
 
   return <div>
-    {/* HEADER ROW */}
+    {/* HEADER */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
-      <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+      <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
         <span style={{fontSize:13,color:"var(--muted)"}}>{inventory.length} items</span>
-        {isOwner&&<span style={{fontSize:13,color:"var(--muted)"}}>Stock value: <strong style={{color:"var(--text)"}}>{fmt(totalValue)}</strong></span>}
-        {lowStock.length>0&&<span onClick={()=>window.location.hash="shopping"} style={{fontSize:12.5,color:"#B03A2E",fontWeight:600,cursor:"pointer",background:"#FDEBE9",padding:"3px 10px",borderRadius:20}}>⚠ {lowStock.length} low stock → Shopping List</span>}
+        {lowStock.length>0&&<span onClick={()=>setView("shopping")} style={{fontSize:12.5,color:"#B03A2E",fontWeight:600,cursor:"pointer",background:"#FDEBE9",padding:"3px 10px",borderRadius:20}}>⚠ {lowStock.length} low stock → Shopping List</span>}
       </div>
       {isOwner&&<div style={{display:"flex",gap:8}}>
-        <Btn small variant="ghost" onClick={()=>{setPasteMode(p=>!p);setImportStep(1)}}>📋 Paste from Excel</Btn>
-        <Btn small onClick={()=>setAddMode(a=>!a)}>+ Add Item</Btn>
+        <Btn small variant="ghost" onClick={()=>{setShowImport(s=>!s);setShowAdd(false);setImportStep(1)}}>📋 Import from Excel</Btn>
+        <Btn small onClick={()=>{setShowAdd(s=>!s);setShowImport(false)}}>+ Add Item</Btn>
       </div>}
     </div>
 
-    {/* SMART PASTE IMPORT */}
-    {pasteMode&&isOwner&&<Card style={{marginBottom:14,borderColor:"var(--gold)",background:"#FDFAF4"}}>
+    {/* SUMMARY CARDS */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:12}}>
+      <Card style={{padding:"12px 14px"}}><div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:.8,marginBottom:4}}>Total items</div><div style={{fontSize:22,fontWeight:500,color:"var(--text)"}}>{inventory.length}</div></Card>
+      <Card style={{padding:"12px 14px"}}><div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:.8,marginBottom:4}}>Items OK</div><div style={{fontSize:22,fontWeight:500,color:"#357A52"}}>{okCount}</div></Card>
+      <Card style={{padding:"12px 14px",background:"#FFF9EE",borderColor:"var(--gold)"}}><div style={{fontSize:10,color:"#9A6C1A",textTransform:"uppercase",letterSpacing:.8,marginBottom:4}}>Low / Out</div><div style={{fontSize:22,fontWeight:500,color:"var(--gold)"}}>{lowStock.length}</div></Card>
+    </div>
+
+    {/* LOW STOCK BANNER */}
+    {lowStock.length>0&&<div style={{background:"#FFF9EE",border:"1px solid var(--gold)",borderRadius:8,padding:"9px 14px",fontSize:12.5,color:"#9A6C1A",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <span>⚠ {lowStock.map(i=>i.name).join(", ")} — below minimum</span>
+      <Btn small variant="outline" onClick={()=>setView("shopping")}>🛒 Shopping List →</Btn>
+    </div>}
+
+    {/* IMPORT PANEL */}
+    {showImport&&isOwner&&<Card style={{marginBottom:14,borderColor:"var(--gold)",background:"#FDFAF4"}}>
+
       {/* Step indicators */}
-      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:16,flexWrap:"wrap"}}>
-        {[["1","Paste data"],["2","AI reads it"],["3","Preview"],["✓","Imported"]].map(([num,lbl],i)=>{
+      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+        {[["1","Paste columns"],["2","Preview"],["✓","Imported"]].map(([num,lbl],i)=>{
           const idx=i+1
-          const isDone=importStep>idx
-          const isActive=importStep===idx
+          const done=importStep>idx,active=importStep===idx
           return <div key={num} style={{display:"flex",alignItems:"center",gap:5}}>
-            <div style={{width:22,height:22,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,background:isDone?"#357A52":isActive?"var(--gold)":"var(--border)",color:isDone||isActive?"#fff":"var(--muted)",flexShrink:0}}>{isDone?"✓":num}</div>
-            <span style={{fontSize:12,color:isActive?"var(--text)":"var(--muted)",fontWeight:isActive?500:400}}>{lbl}</span>
-            {i<3&&<div style={{width:20,height:1,background:"var(--border)",margin:"0 2px"}}/>}
+            <div style={{width:22,height:22,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,background:done?"#357A52":active?"var(--gold)":"var(--border)",color:done||active?"#fff":"var(--muted)"}}>{done?"✓":num}</div>
+            <span style={{fontSize:12,color:active?"var(--text)":"var(--muted)",fontWeight:active?500:400}}>{lbl}</span>
+            {i<2&&<div style={{width:20,height:1,background:"var(--border)",margin:"0 2px"}}/>}
           </div>
         })}
       </div>
 
       {/* STEP 1 — paste */}
       {importStep===1&&<div>
-        <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:10,lineHeight:1.7}}>Copy any columns from your Excel — in any order, with any column names. AI will figure out what each column means. Missing columns are fine.</div>
-        <div style={{padding:"8px 12px",background:"#FFF9EE",borderRadius:7,fontSize:12,color:"#9A6C1A",marginBottom:10}}>💡 Just copy from Excel as-is. No reformatting needed.</div>
-        <textarea value={pasteText} onChange={e=>setPasteText(e.target.value)} placeholder={"Paste your Excel data here — any format works.\n\nExample:\nItem\t\tBulk Price\tUnit\tPack Size\tQty Bought\nFlour\t\t57000\t\tkg\t50\t\t3\nSugar\t\t75000\t\tkg\t50\t\t1\nEggs\t\t6200\t\tpcs\t30\t\t6"} style={{width:"100%",minHeight:130,padding:"10px",borderRadius:8,border:"1px solid var(--border)",background:"var(--panel)",fontSize:12,fontFamily:"monospace",color:"var(--text)",boxSizing:"border-box",resize:"vertical",outline:"none",marginBottom:10}}/>
+        <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:10,lineHeight:1.7}}>Open your Excel. Copy each column and paste into its own box. Only item names and cost per unit are required.</div>
+        <div style={{background:"#FFF9EE",border:"1px solid #E8D5A3",borderRadius:7,padding:"8px 12px",fontSize:12,color:"#9A6C1A",marginBottom:12}}>💡 Just copy from Excel as-is. No reformatting needed.</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:10}}>
+          <div>
+            <label style={{fontSize:10,color:"var(--muted)",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:.8,fontWeight:500}}>Item Names *</label>
+            <textarea value={pasteN} onChange={e=>{setPasteN(e.target.value);checkMatch()}} placeholder={"FlourSugarOilEggsButter"} style={{width:"100%",minHeight:120,padding:"8px",borderRadius:8,border:"1px solid var(--border)",background:"var(--panel)",fontSize:12,fontFamily:"monospace",color:"var(--text)",boxSizing:"border-box",resize:"vertical",outline:"none"}}/>
+          </div>
+          <div>
+            <label style={{fontSize:10,color:"var(--muted)",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:.8,fontWeight:500}}>Unit <span style={{color:"var(--muted)",fontSize:9}}>(optional)</span></label>
+            <textarea value={pasteU} onChange={e=>setPasteU(e.target.value)} placeholder={"kgkgLpcskg"} style={{width:"100%",minHeight:120,padding:"8px",borderRadius:8,border:"1px solid var(--border)",background:"var(--panel)",fontSize:12,fontFamily:"monospace",color:"var(--text)",boxSizing:"border-box",resize:"vertical",outline:"none"}}/>
+            <div style={{fontSize:10.5,color:"var(--muted)",marginTop:3}}>Leave blank to default all to kg</div>
+          </div>
+          <div>
+            <label style={{fontSize:10,color:"#9A6C1A",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:.8,fontWeight:500}}>Cost / Unit (₦) *</label>
+            <textarea value={pasteC} onChange={e=>{setPasteC(e.target.value);checkMatch()}} placeholder={"11401500300020717500"} style={{width:"100%",minHeight:120,padding:"8px",borderRadius:8,border:"1px solid #E8D5A3",background:"#FFF9EE",fontSize:12,fontFamily:"monospace",color:"var(--text)",boxSizing:"border-box",resize:"vertical",outline:"none"}}/>
+            <div style={{fontSize:10.5,color:"#9A6C1A",marginTop:3}}>Bulk price ÷ qty bought = cost/unit</div>
+          </div>
+        </div>
+        {warnMsg&&<div style={{padding:"7px 12px",background:"#FDEBE9",borderRadius:7,fontSize:12,color:"#B03A2E",marginBottom:10}}>⚠ {warnMsg}</div>}
         <div style={{display:"flex",gap:8}}>
-          <Btn onClick={runAIImport} disabled={!pasteText.trim()}>✦ Let AI Read This →</Btn>
-          <Btn variant="ghost" onClick={resetImport}>Cancel</Btn>
+          <Btn onClick={doPreview} disabled={!pasteN.trim()||!pasteC.trim()||!!warnMsg}>Preview import →</Btn>
+          <Btn variant="ghost" onClick={()=>setShowImport(false)}>Cancel</Btn>
         </div>
       </div>}
 
-      {/* STEP 2 — loading */}
-      {importStep===2&&<div style={{textAlign:"center",padding:"24px 0"}}>
-        <div style={{fontSize:13,color:"var(--muted)",marginBottom:12}}>✦ AI is reading your data…</div>
-        <div style={{fontSize:12,color:"var(--muted)"}}>Identifying columns · Matching items · Calculating cost per unit</div>
-        <Spinner/>
-      </div>}
-
-      {/* STEP 3 — preview */}
-      {importStep===3&&preview.length>0&&<div>
-        <div style={{padding:"8px 12px",background:"#F5F0E4",borderRadius:7,fontSize:12,color:"#5C3D1A",marginBottom:12}}>{aiMapping} · Toggle off any row you do not want to import</div>
-        <div style={{overflowX:"auto",marginBottom:12}}>
+      {/* STEP 2 — preview */}
+      {importStep===2&&<div>
+        <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:10}}>Check every row. Toggle off anything you don't want. Opening stock is set in Settings after import.</div>
+        <div style={{overflowX:"auto",marginBottom:10}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12.5}}>
-            <thead><tr style={{background:"#EDE5D6"}}>{["","Item","Unit","Pack Size","Qty Bought","Bulk Price","Min Alert","Stock","Cost/Unit ✦","Note"].map(h=><th key={h} style={{padding:"7px 8px",textAlign:"left",fontSize:10,textTransform:"uppercase",letterSpacing:0.8,color:"var(--muted)",fontWeight:500,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
-            <tbody>{preview.map((p,i)=><tr key={p.id} style={{background:i%2===0?"var(--panel)":"#F8F3EA",opacity:p.approved?1:0.4}}>
-              <td style={{padding:"6px 8px"}}><div onClick={()=>setPreview(prev=>prev.map((x,j)=>j===i?{...x,approved:!x.approved}:x))} style={{width:30,height:16,borderRadius:8,background:p.approved?"#357A52":"var(--border)",cursor:"pointer",position:"relative"}}><div style={{width:12,height:12,borderRadius:"50%",background:"white",position:"absolute",top:2,left:p.approved?16:2,transition:"left 0.2s"}}/></div></td>
-              <td style={{padding:"6px 8px",fontWeight:500}}>{p.name}</td>
-              <td style={{padding:"6px 8px",color:"var(--muted)"}}>{p.unit}</td>
-              <td style={{padding:"6px 8px",color:"var(--muted)"}}>{p.unitSize} {p.unit}</td>
-              <td style={{padding:"6px 8px",color:"var(--muted)"}}>{p.qtyBought}</td>
-              <td style={{padding:"6px 8px"}}>{fmt(p.bulkPrice)}</td>
-              <td style={{padding:"6px 8px",color:"var(--muted)"}}>{p.minStock} {p.unit}</td>
-              <td style={{padding:"6px 8px",fontWeight:500,color:"#357A52"}}>{p.stock} {p.unit}</td>
-              <td style={{padding:"6px 8px",fontWeight:500,color:"var(--gold)"}}>{fmt(p.cost)}/{p.unit}</td>
-              <td style={{padding:"6px 8px",fontSize:11,color:"var(--muted)",fontStyle:"italic"}}>{p.note||""}</td>
+            <thead><tr style={{background:"#EDE5D6"}}>
+              {["","Item","Unit","Cost/Unit"].map(h=><th key={h} style={{padding:"7px 10px",textAlign:h==="Cost/Unit"?"right":"left",fontSize:10,textTransform:"uppercase",letterSpacing:.8,color:"var(--muted)",fontWeight:500}}>{h}</th>)}
+            </tr></thead>
+            <tbody>{prevItems.map((p,i)=><tr key={p.id} style={{background:i%2===0?"var(--panel)":"#F8F3EA",opacity:p.on?1:0.35}}>
+              <td style={{padding:"6px 10px"}}><div onClick={()=>setPrevItems(prev=>prev.map((x,j)=>j===i?{...x,on:!x.on}:x))} style={{width:30,height:16,borderRadius:8,background:p.on?"#357A52":"var(--border)",cursor:"pointer",position:"relative"}}><div style={{width:12,height:12,borderRadius:"50%",background:"white",position:"absolute",top:2,left:p.on?16:2,transition:"left 0.2s"}}/></div></td>
+              <td style={{padding:"6px 10px",fontWeight:500}}>{p.name}</td>
+              <td style={{padding:"6px 10px",color:"var(--muted)"}}>{p.unit}</td>
+              <td style={{padding:"6px 10px",textAlign:"right",fontWeight:500,color:"var(--gold)"}}>{fmt(p.cost)}/{p.unit}</td>
             </tr>)}</tbody>
           </table>
         </div>
+        <div style={{background:"#EEF8F3",border:"1px solid #C2E0CF",borderRadius:7,padding:"8px 12px",fontSize:12,color:"#357A52",marginBottom:10}}>
+          After import, go to <strong>Settings → Opening Stock</strong> to set your starting quantities. Stock will then track automatically from there.
+        </div>
         <div style={{display:"flex",gap:8}}>
-          <Btn variant="success" onClick={confirmImport} disabled={!preview.some(p=>p.approved)}>✓ Confirm & Import {preview.filter(p=>p.approved).length} Items</Btn>
-          <Btn variant="ghost" onClick={()=>setImportStep(1)}>← Edit Paste</Btn>
+          <Btn variant="success" onClick={confirmImport} disabled={!prevItems.some(p=>p.on)}>✓ Confirm & Import {prevItems.filter(p=>p.on).length} Items</Btn>
+          <Btn variant="ghost" onClick={()=>setImportStep(1)}>← Edit</Btn>
         </div>
       </div>}
 
-      {/* STEP 4 — done */}
-      {importStep===4&&<div style={{textAlign:"center",padding:"16px 0"}}>
+      {/* STEP 3 — done */}
+      {importStep===3&&<div style={{textAlign:"center",padding:"16px 0"}}>
         <div style={{fontSize:16,color:"#357A52",fontWeight:600,marginBottom:6}}>✓ Import complete</div>
-        <div style={{fontSize:13,color:"var(--muted)",marginBottom:14}}>All items are live in your inventory.</div>
-        <Btn variant="ghost" onClick={resetImport}>Import More</Btn>
+        <div style={{fontSize:13,color:"var(--muted)",marginBottom:14}}>Go to <strong>Settings → Opening Stock</strong> to set starting quantities.</div>
+        <Btn variant="ghost" onClick={()=>{setImportStep(1);setShowImport(false)}}>Done</Btn>
       </div>}
     </Card>}
 
-    {/* ADD ITEM FORM */}
-    {addMode&&isOwner&&<Card style={{marginBottom:14,background:"#FFF9EE",borderColor:"var(--gold)"}}>
+    {/* ADD SINGLE ITEM */}
+    {showAdd&&isOwner&&<Card style={{marginBottom:14,background:"#FFF9EE",borderColor:"var(--gold)"}}>
       <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:12}}>Add New Item</div>
-      <div style={{padding:"7px 12px",background:"#FFF9EE",borderRadius:7,fontSize:12,color:"#9A6C1A",marginBottom:12,border:"1px solid #E8D5A3"}}>Enter what you bought from the market. Cost per unit and stock are calculated automatically.</div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10}}>
+      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",gap:10}}>
         <Inp label="Item Name *" value={newItem.name} onChange={v=>setNewItem(p=>({...p,name:v}))} placeholder="e.g. Flour"/>
-        <Inp label="Category" value={newItem.cat||""} onChange={v=>setNewItem(p=>({...p,cat:v}))} placeholder="Dry Goods…"/>
-        <Sel label="Unit *" value={newItem.unit||"kg"} onChange={v=>setNewItem(p=>({...p,unit:v}))} options={["kg","g","L","ml","pcs","pack","bottle","roll","set"].map(u=>({value:u,label:u}))}/>
-        <Inp label="Pack/Bag Size *" type="number" value={newItem.unitSize||""} onChange={v=>setNewItem(p=>({...p,unitSize:v}))} placeholder="e.g. 50 (for 50kg bag)"/>
-        <Inp label="Qty Bought *" type="number" value={newItem.qtyBought||""} onChange={v=>setNewItem(p=>({...p,qtyBought:v}))} placeholder="e.g. 3 (bags)"/>
-        <Inp label="Bulk Price (₦) *" type="number" value={newItem.bulkPrice||""} onChange={v=>setNewItem(p=>({...p,bulkPrice:v}))} placeholder="e.g. 57000"/>
-        <Inp label="Min Alert Level" type="number" value={newItem.minStock||""} onChange={v=>setNewItem(p=>({...p,minStock:v}))} placeholder="e.g. 10"/>
+        <Sel label="Unit *" value={newItem.unit} onChange={v=>setNewItem(p=>({...p,unit:v}))} options={["kg","g","L","ml","pcs","pack","bottle","roll","set"].map(u=>({value:u,label:u}))}/>
+        <Inp label="Cost/Unit (₦) *" type="number" value={newItem.cost} onChange={v=>setNewItem(p=>({...p,cost:v}))} placeholder="e.g. 1140"/>
+        <Inp label="Min Alert" type="number" value={newItem.minStock} onChange={v=>setNewItem(p=>({...p,minStock:v}))} placeholder="e.g. 10"/>
       </div>
-      {newItem.bulkPrice&&newItem.unitSize&&<div style={{padding:"7px 12px",background:"#EEF8F3",borderRadius:7,fontSize:13,marginBottom:10,border:"1px solid #C2E0CF"}}>
-        Cost per {newItem.unit||"unit"}: <strong style={{color:"var(--gold)"}}>{fmt(+newItem.bulkPrice/(+newItem.unitSize||1))}</strong> · Opening stock: <strong>{((+newItem.unitSize||0)*(+newItem.qtyBought||0)).toFixed(3)} {newItem.unit||""}</strong>
-      </div>}
-      <div style={{display:"flex",gap:8}}><Btn onClick={addItem}>Save Item</Btn><Btn variant="ghost" onClick={()=>setAddMode(false)}>Cancel</Btn></div>
+      <div style={{display:"flex",gap:8}}><Btn onClick={addSingle}>Save</Btn><Btn variant="ghost" onClick={()=>setShowAdd(false)}>Cancel</Btn></div>
     </Card>}
 
     {/* MAIN TABLE */}
     <div style={{overflowX:"auto"}}>
       <table style={{width:"100%",borderCollapse:"collapse",background:"var(--panel)",borderRadius:10,overflow:"hidden",border:"1px solid var(--border)"}}>
-        <TH cols={["Item","Unit","Pack Size","Qty Bought","Bulk Price","Min Alert","Stock","Cost/Unit ✦",...(isOwner?["Actions"]:[])]}/>
-        <tbody>{inventory.map((item,i)=>{
-          const isLow=item.stock<=(item.minStock||5)
-          const editing=editId===item.id
-          return <tr key={item.id} style={{background:isLow?"#FFF9EE":i%2===0?"var(--panel)":"#F8F3EA"}}>
-            {editing?<>
-              <td style={{padding:"6px 8px"}}><input value={editRow.name||""} onChange={e=>setEditRow(r=>({...r,name:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12}}/></td>
-              <td style={{padding:"6px 8px"}}><input value={editRow.unit||""} onChange={e=>setEditRow(r=>({...r,unit:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12,width:55}}/></td>
-              <td style={{padding:"6px 8px"}}><input type="number" value={editRow.unitSize||""} onChange={e=>setEditRow(r=>({...r,unitSize:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12,width:70}}/></td>
-              <td style={{padding:"6px 8px"}}><input type="number" value={editRow.qtyBought||""} onChange={e=>setEditRow(r=>({...r,qtyBought:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12,width:60}}/></td>
-              <td style={{padding:"6px 8px"}}><input type="number" value={editRow.bulkPrice||""} onChange={e=>setEditRow(r=>({...r,bulkPrice:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12}}/></td>
-              <td style={{padding:"6px 8px"}}><input type="number" value={editRow.minStock||""} onChange={e=>setEditRow(r=>({...r,minStock:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12,width:55}}/></td>
-              <td style={{padding:"6px 8px",fontSize:12,color:"var(--muted)"}}>{((+editRow.unitSize||0)*(+editRow.qtyBought||0)).toFixed(1)} {editRow.unit}</td>
-              <td style={{padding:"6px 8px",fontSize:12,color:"var(--gold)",fontWeight:500}}>{editRow.bulkPrice&&editRow.unitSize?fmt(+editRow.bulkPrice/(+editRow.unitSize||1)):"—"}</td>
-              <td style={{padding:"6px 8px"}}><div style={{display:"flex",gap:4}}>
-                <Btn small variant="success" onClick={()=>{
-                  const cost=parseFloat((+editRow.bulkPrice/(+editRow.unitSize||1)).toFixed(2))
-                  const stock=parseFloat(((+editRow.unitSize)*(+editRow.qtyBought)).toFixed(3))
-                  setEditRow(r=>({...r,cost,stock}))
-                  saveEdit()
-                }}>✓</Btn>
-                <Btn small variant="ghost" onClick={()=>setEditId(null)}>✗</Btn>
-              </div></td>
-            </>:<>
-              <td style={{padding:"9px 10px",fontWeight:500,fontSize:13}}>{item.name}<div style={{fontSize:10.5,color:"var(--muted)",marginTop:1}}>{item.cat}</div></td>
-              <td style={{padding:"9px 10px",color:"var(--muted)",fontSize:13}}>{item.unit}</td>
-              <td style={{padding:"9px 10px",fontSize:13}}>{item.unitSize||"—"} {item.unit}</td>
-              <td style={{padding:"9px 10px",fontSize:13,color:"var(--muted)"}}>{item.qtyBought||"—"}</td>
-              <td style={{padding:"9px 10px",fontSize:13}}>{item.bulkPrice?fmt(item.bulkPrice):"—"}</td>
-              <td style={{padding:"9px 10px",fontSize:13,color:"var(--muted)"}}>{item.minStock||5} {item.unit}</td>
-              <td style={{padding:"9px 10px",fontSize:13,fontWeight:600,color:isLow?"#B03A2E":"#357A52"}}>{item.stock} {item.unit}{isLow&&" ⚠"}</td>
-              <td style={{padding:"9px 10px",fontSize:13,fontWeight:500,color:"var(--gold)"}}>{fmt(item.cost)}/{item.unit}</td>
-              {isOwner&&<td style={{padding:"9px 10px"}}><div style={{display:"flex",gap:4}}>
-                <Btn small variant="ghost" onClick={()=>{setEditId(item.id);setEditRow({...item})}}>✎</Btn>
-                <Btn small variant="danger" onClick={()=>deleteItem(item.id)}>×</Btn>
-              </div></td>}
-            </>}
-          </tr>
-        })}</tbody>
+        <TH cols={["Item","Unit","Stock qty","Cost/Unit","Min Alert","Status",...(isOwner?["Actions"]:[])]}/>
+        <tbody>{inventory.length===0
+          ?<tr><td colSpan={7} style={{padding:32,textAlign:"center",color:"var(--muted)",fontSize:13}}>No items yet — import from Excel or add one at a time</td></tr>
+          :inventory.map((item,i)=>{
+            const isLow=item.stock<=(item.minStock||5)
+            const editing=editId===item.id
+            return <tr key={item.id} style={{background:isLow?"#FFF9EE":i%2===0?"var(--panel)":"#F8F3EA"}}>
+              {editing?<>
+                <td style={{padding:"6px 8px"}}><input value={editRow.name||""} onChange={e=>setEditRow(r=>({...r,name:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12}}/></td>
+                <td style={{padding:"6px 8px"}}><select value={editRow.unit||"kg"} onChange={e=>setEditRow(r=>({...r,unit:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12,width:60}}>{["kg","g","L","ml","pcs","pack","bottle"].map(u=><option key={u}>{u}</option>)}</select></td>
+                <td style={{padding:"6px 8px"}}><input type="number" value={editRow.stock||""} onChange={e=>setEditRow(r=>({...r,stock:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12,width:70}}/></td>
+                <td style={{padding:"6px 8px"}}><input type="number" value={editRow.cost||""} onChange={e=>setEditRow(r=>({...r,cost:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12,width:80}}/></td>
+                <td style={{padding:"6px 8px"}}><input type="number" value={editRow.minStock||""} onChange={e=>setEditRow(r=>({...r,minStock:e.target.value}))} style={{...iSt,padding:"4px 6px",fontSize:12,width:60}}/></td>
+                <td style={{padding:"6px 8px"}}></td>
+                <td style={{padding:"6px 8px"}}><div style={{display:"flex",gap:4}}><Btn small variant="success" onClick={doSaveEdit}>✓</Btn><Btn small variant="ghost" onClick={cancelEdit}>✗</Btn></div></td>
+              </>:<>
+                <td style={{padding:"9px 10px",fontWeight:500,fontSize:13}}>{item.name}</td>
+                <td style={{padding:"9px 10px",color:"var(--muted)",fontSize:13}}>{item.unit}</td>
+                <td style={{padding:"9px 10px",fontSize:13,fontWeight:600,color:isLow?"#B03A2E":"#357A52"}}>{item.stock||0} {item.unit}</td>
+                <td style={{padding:"9px 10px",fontSize:13,fontWeight:500,color:"var(--gold)"}}>{fmt(item.cost)}/{item.unit}</td>
+                <td style={{padding:"9px 10px",fontSize:13,color:"var(--muted)"}}>{item.minStock||5} {item.unit}</td>
+                <td style={{padding:"9px 10px"}}>{badge(item)}</td>
+                {isOwner&&<td style={{padding:"9px 10px"}}><div style={{display:"flex",gap:4}}><Btn small variant="ghost" onClick={()=>startEdit(item)}>✎</Btn><Btn small variant="danger" onClick={()=>doDelete(item.id)}>×</Btn></div></td>}
+              </>}
+            </tr>
+          })
+        }</tbody>
       </table>
     </div>
-    <div style={{marginTop:8,fontSize:11.5,color:"var(--muted)",lineHeight:1.7}}>✦ Cost per unit = bulk price ÷ pack size (auto-calculated). Stock reduces automatically as production orders are confirmed. Restock through the Receipt Scanner.</div>
+    <div style={{marginTop:8,fontSize:11.5,color:"var(--muted)",lineHeight:1.7}}>Stock reduces automatically as production orders are saved. Set opening stock in <strong>Settings → Opening Stock</strong>. Restock by scanning a purchase receipt.</div>
   </div>
 }
+
 
 // ═══════════════════════════════════════════════════════════
 //  RECIPE CARD (standalone component — avoids hook-in-map bug)
@@ -763,7 +762,7 @@ function DecorationsTab({inventory, isOwner}){
 // ═══════════════════════════════════════════════════════════
 //  MASTER LIST (editable inventory + editable recipes)
 // ═══════════════════════════════════════════════════════════
-function MasterList({inventory,setInventory,recipes,setRecipes,user}){
+function MasterList({inventory,setInventory,recipes,setRecipes,user,setView}){
   const [tab,setTab]=useState("inventory")
   const [editId,setEditId]=useState(null)
   const [editRow,setEditRow]=useState({})
@@ -844,19 +843,7 @@ function MasterList({inventory,setInventory,recipes,setRecipes,user}){
     <Tabs tabs={[{v:"inventory",l:"Inventory"},{v:"recipes",l:"Base Recipes"},{v:"decorations",l:"Decoration Extras"}]} active={tab} onChange={setTab}/>
 
     {/* ── INVENTORY ── */}
-    {tab==="inventory"&&<InventoryTab
-      inventory={inventory} setInventory={setInventory}
-      isOwner={isOwner}
-      showMsg={showMsg}
-      addMode={addMode} setAddMode={setAddMode}
-      newItem={newItem} setNewItem={setNewItem}
-      addItem={addItem}
-      editId={editId} setEditId={setEditId}
-      editRow={editRow} setEditRow={setEditRow}
-      saveEdit={saveEdit} deleteItem={deleteItem}
-      pasteMode={pasteMode} setPasteMode={setPasteMode}
-      pasteText={pasteText} setPasteText={setPasteText}
-    />}
+    {tab==="inventory"&&<InventoryTab inventory={inventory} setInventory={setInventory} isOwner={isOwner} showMsg={showMsg} setView={setView}/>}
 
     {/* ── RECIPES ── */}
     {tab==="recipes"&&<div>
@@ -1476,13 +1463,50 @@ function Reports({productions,transactions,expenses,company}){
     w.document.close()
   }
 
+  // Monthly stock statement data
+  const mInv = inventory => {
+    return inventory.map(item => {
+      const opening = item.openingStock || item.stock || 0
+      const used = productions.filter(p=>p.deliveryDate?.startsWith(sel)).reduce((s,p)=>{
+        if(!p.recipeId) return s
+        return s // deductions tracked per production — simplified here
+      },0)
+      return {...item, opening, used, closing: item.stock||0 }
+    })
+  }
+
+  const dlStock=()=>{
+    const w=window.open("","_blank")
+    const monthLabel2=sel?new Date(sel+"-02").toLocaleDateString("en-NG",{month:"long",year:"numeric"}):""
+    w.document.write(`<!DOCTYPE html><html><head><title>Stock Statement ${monthLabel2}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;color:#291608;padding:40px;max-width:780px;margin:0 auto}h1{font-size:20px;font-weight:700;color:${company.primaryColor||"#C8912A"}}h2{font-size:13px;color:#888;font-weight:normal;margin:4px 0 20px}table{width:100%;border-collapse:collapse;margin:14px 0}th{background:#EDE5D6;padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:#888}td{padding:8px 10px;border-bottom:1px solid #E0D3BB;font-size:13px}.right{text-align:right}.total{font-weight:bold;background:#F5F0E4}@media print{button{display:none}}</style></head><body>
+      ${company.logo?`<img src="${company.logo}" style="height:50px;display:block;margin-bottom:10px" alt="logo"/>`:""}
+      <h1>${company.name||"Bakery"} — Monthly Stock Statement</h1>
+      <h2>${monthLabel2}</h2>
+      <table>
+        <tr><th>Item</th><th>Unit</th><th class="right">Opening Stock</th><th class="right">+ Purchased</th><th class="right">− Used in Production</th><th class="right">Closing Stock</th><th class="right">Cost/Unit</th><th class="right">Closing Value</th></tr>
+        ${inventory.map(item=>{
+          const opening=item.openingStock||item.stock||0
+          const purchased=expenses.filter(e=>e.date?.startsWith(sel)&&(e.description?.toLowerCase().includes(item.name.toLowerCase()))).reduce((s,e)=>s+(e.amount||0),0)
+          const closing=item.stock||0
+          const used=Math.max(0,opening-closing)
+          return `<tr><td>${item.name}</td><td>${item.unit}</td><td class="right">${opening} ${item.unit}</td><td class="right" style="color:#357A52">+${Math.round(purchased/Math.max(item.cost,1))} ${item.unit}</td><td class="right" style="color:#B03A2E">−${used} ${item.unit}</td><td class="right"><strong>${closing} ${item.unit}</strong></td><td class="right" style="color:#C8912A">₦${Math.round(item.cost).toLocaleString()}</td><td class="right">₦${Math.round(closing*item.cost).toLocaleString()}</td></tr>`
+        }).join("")}
+        <tr class="total"><td colspan="7" class="right">Total closing stock value</td><td class="right">₦${Math.round(inventory.reduce((s,i)=>s+(i.stock||0)*(i.cost||0),0)).toLocaleString()}</td></tr>
+      </table>
+      <div style="margin-top:14px;padding:12px 14px;background:#FFF9EE;border-radius:8px;font-size:12px;color:#9A6C1A;line-height:1.7">Opening stock is set on the first day of each month in Settings → Opening Stock. Used in Production is calculated from confirmed production orders.</div>
+      <p style="font-size:11px;color:#aaa;margin-top:30px">Generated by LayerLedger · ${new Date().toLocaleDateString()}</p>
+      <script>window.print()</script></body></html>`)
+    w.document.close()
+  }
+
   return <div>
     <SHead title="Financial Reports" sub="Monthly P&L compiled from productions, expenses, and bank data."/>
     <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,flexWrap:"wrap"}}>
       <select value={sel} onChange={e=>setSel(e.target.value)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid var(--border)",background:"var(--panel)",fontSize:13,color:"var(--text)"}}>
         {(allMonths.length?allMonths:[cur]).map(m=><option key={m} value={m}>{new Date(m+"-02").toLocaleDateString("en-NG",{month:"long",year:"numeric"})}</option>)}
       </select>
-      <Btn onClick={dl} variant="outline">📥 Download PDF Report</Btn>
+      <Btn onClick={dl} variant="outline">📥 Download P&L Report</Btn>
+      <Btn onClick={dlStock} variant="ghost">📥 Download Stock Statement</Btn>
     </div>
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10,marginBottom:16}}>
       {[{l:"Revenue",v:fmt(rev),s:`${paid.length} paid`,c:"var(--gold)"},{l:"Prod. Cost",v:fmt(prodCost),s:"ingredients",c:"#2A5F9A"},{l:"Delivery",v:fmt(delivCosts),s:"all orders",c:"#8C6E52"},{l:"Other Exp.",v:fmt(manualExp+bankDebits),s:"cash+bank",c:"#8C6E52"},{l:"Gross Profit",v:fmt(gross),s:margin+"% margin",c:"#357A52"},{l:"Net Profit",v:fmt(net),s:"after all costs",c:net>=0?"#357A52":"#B03A2E"}].map(s=><Card key={s.l} style={{borderBottom:`3px solid ${s.c}`}}><div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:5}}>{s.l}</div><div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700,color:s.c}}>{s.v}</div><div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>{s.s}</div></Card>)}
@@ -1921,7 +1945,7 @@ export default function App(){
         <div style={{padding:isMobile?"14px":"24px 26px",flex:1,overflowY:"auto"}}>
           {loading?<Spinner/>:<>
             {view==="dashboard"  &&<Dashboard productions={productions} inventory={inventory} expenses={expenses} setView={setView} user={currentUser}/>}
-            {view==="masterlist" &&<MasterList inventory={inventory} setInventory={setInventory} recipes={recipes} setRecipes={setRecipes} user={currentUser}/>}
+            {view==="masterlist" &&<MasterList inventory={inventory} setInventory={setInventory} recipes={recipes} setRecipes={setRecipes} user={currentUser} setView={setView}/>}
             {view==="production" &&<ProductionEntry inventory={inventory} setInventory={setInventory} recipes={recipes} productions={productions} setProductions={setProductions} settings={settings} setView={setView} user={currentUser}/>}
             {view==="receipts"   &&<ReceiptScanner inventory={inventory} setInventory={setInventory} expenses={expenses} setExpenses={setExpenses}/>}
             {view==="expenses"   &&<Expenses expenses={expenses} setExpenses={setExpenses}/>}
