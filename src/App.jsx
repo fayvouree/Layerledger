@@ -1711,9 +1711,179 @@ function Invoices({productions,company,prefillProd,setPrefillProd}){
 }
 
 // ═══════════════════════════════════════════════════════════
+//  OPENING STOCK TAB (in Settings)
+// ═══════════════════════════════════════════════════════════
+function OpeningStockTab({inventory}){
+  const LS_KEY="ll_opening_stock"
+  const loadOS=()=>{try{return JSON.parse(localStorage.getItem(LS_KEY)||"{}")}catch{return{}}}
+  const [os,setOs]=useState(loadOS)
+  const [saved,setSaved]=useState(false)
+  const curMonth=new Date().toLocaleDateString("en-NG",{month:"long",year:"numeric"})
+
+  const updateOS=(id,val)=>{
+    const updated={...os,[id]:parseFloat(val)||0}
+    setOs(updated)
+    localStorage.setItem(LS_KEY,JSON.stringify(updated))
+    setSaved(false)
+  }
+
+  const lockStock=()=>{
+    // Save with month key so it's permanent for this month
+    const monthKey="ll_os_"+new Date().toISOString().slice(0,7)
+    const snapshot={date:new Date().toISOString(),items:inventory.map(i=>({id:i.id,name:i.name,unit:i.unit,openingQty:os[i.id]||0,cost:i.cost}))}
+    localStorage.setItem(monthKey,JSON.stringify(snapshot))
+    setSaved(true)
+  }
+
+  return <div style={{maxWidth:640}}>
+    <Card style={{marginBottom:14,background:"#FFF9EE",borderColor:"var(--gold)"}}>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:8}}>Opening Stock — {curMonth}</div>
+      <p style={{fontSize:12.5,color:"var(--muted)",marginTop:0,lineHeight:1.7,marginBottom:12}}>Set this once at the start of each month — or when you first set up the app. Once locked, this record never changes. It is used to generate your monthly stock statement automatically.</p>
+      <div style={{padding:"8px 12px",background:"#FFF3CD",borderRadius:7,fontSize:12,color:"#856404",marginBottom:14}}>⚠ Set opening stock at the beginning of each month before production starts. Once you lock it, it becomes a permanent record for that month.</div>
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+          <thead><tr style={{background:"#EDE5D6"}}>
+            {["Item","Unit","Opening Stock Qty","Cost/Unit","Opening Value"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:h==="Item"||h==="Unit"?"left":"right",fontSize:10,textTransform:"uppercase",letterSpacing:.8,color:"var(--muted)",fontWeight:500}}>{h}</th>)}
+          </tr></thead>
+          <tbody>{inventory.map((item,i)=>{
+            const qty=os[item.id]||0
+            return <tr key={item.id} style={{background:i%2===0?"var(--panel)":"#F8F3EA"}}>
+              <td style={{padding:"8px 10px",fontWeight:500}}>{item.name}</td>
+              <td style={{padding:"8px 10px",color:"var(--muted)"}}>{item.unit}</td>
+              <td style={{padding:"8px 10px",textAlign:"right"}}>
+                <input type="number" value={qty||""} onChange={e=>updateOS(item.id,e.target.value)} placeholder="0" style={{...iSt,width:90,padding:"4px 8px",fontSize:13,textAlign:"right"}}/>
+              </td>
+              <td style={{padding:"8px 10px",textAlign:"right",color:"var(--gold)",fontWeight:500}}>{fmt(item.cost)}/{item.unit}</td>
+              <td style={{padding:"8px 10px",textAlign:"right",color:"var(--muted)",fontSize:12}}>{fmt(qty*item.cost)}</td>
+            </tr>
+          })}</tbody>
+          <tfoot><tr>
+            <td colSpan={4} style={{padding:"10px",textAlign:"right",fontWeight:600,fontSize:13}}>Total opening stock value</td>
+            <td style={{padding:"10px",textAlign:"right",fontWeight:700,color:"var(--gold)",fontSize:15}}>{fmt(inventory.reduce((s,i)=>s+(os[i.id]||0)*i.cost,0))}</td>
+          </tr></tfoot>
+        </table>
+      </div>
+      <div style={{marginTop:14,display:"flex",gap:10,alignItems:"center"}}>
+        <Btn variant="success" onClick={lockStock}>🔒 Lock Opening Stock for {curMonth}</Btn>
+        {saved&&<span style={{fontSize:12.5,color:"#357A52",fontWeight:500}}>✓ Opening stock locked and saved permanently</span>}
+      </div>
+    </Card>
+    <Card>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:8}}>How this works</div>
+      <div style={{fontSize:12.5,color:"var(--muted)",lineHeight:1.8}}>
+        <div style={{marginBottom:6}}>1. On the first day of each month, enter your stock quantities above</div>
+        <div style={{marginBottom:6}}>2. Click Lock — this saves a permanent snapshot for that month</div>
+        <div style={{marginBottom:6}}>3. As you bake, stock reduces automatically from production orders</div>
+        <div style={{marginBottom:6}}>4. Purchases from receipts add back to stock automatically</div>
+        <div>5. At month end, go to Reports → Stock Statement to see your full monthly movement</div>
+      </div>
+    </Card>
+  </div>
+}
+
+// ═══════════════════════════════════════════════════════════
+//  STOCK STATEMENT (monthly — added to Reports)
+// ═══════════════════════════════════════════════════════════
+function StockStatement({inventory,productions,expenses,company}){
+  const allMonths=[...new Set(productions.map(p=>p.deliveryDate?.slice(0,7)).filter(Boolean))].sort().reverse()
+  const cur=new Date().toISOString().slice(0,7)
+  const [sel,setSel]=useState(allMonths[0]||cur)
+
+  const monthLabel=sel?new Date(sel+"-02").toLocaleDateString("en-NG",{month:"long",year:"numeric"}):""
+
+  // Load opening stock snapshot for this month
+  const getOS=()=>{try{const d=JSON.parse(localStorage.getItem("ll_os_"+sel)||"{}");return d.items||[]}catch{return[]}}
+  const osItems=getOS()
+  const getOSQty=(id)=>{const found=osItems.find(i=>i.id===id);return found?found.openingQty:0}
+
+  // Calculate purchased this month from expenses
+  const monthExp=expenses.filter(e=>e.date?.startsWith(sel)&&e.source==="receipt")
+  const totalPurchased=monthExp.reduce((s,e)=>s+(e.amount||0),0)
+
+  // Calculate used in production this month per item
+  // We track this from production records — total cost used
+  const monthProds=productions.filter(p=>p.deliveryDate?.startsWith(sel))
+  const totalUsedValue=monthProds.reduce((s,p)=>s+(p.cost||0),0)
+
+  const dl=()=>{
+    const w=window.open("","_blank")
+    w.document.write(`<!DOCTYPE html><html><head><title>Stock Statement ${monthLabel}</title><style>
+    *{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;color:#291608;padding:40px;max-width:780px;margin:0 auto}
+    h1{font-size:20px;font-weight:700;color:${company.primaryColor||"#C8912A"}}h2{font-size:13px;color:#888;font-weight:normal;margin:4px 0 20px}
+    table{width:100%;border-collapse:collapse;margin:14px 0}th{background:#EDE5D6;padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:#888;font-weight:500}
+    td{padding:8px 10px;border-bottom:1px solid #E0D3BB;font-size:13px}.right{text-align:right}.total{font-weight:bold;background:#F5F0E4}
+    .summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0}.scard{border:1px solid #E0D3BB;border-radius:8px;padding:12px}
+    .slabel{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:4px}.sval{font-size:18px;font-weight:bold;color:${company.primaryColor||"#C8912A"}}
+    @media print{button{display:none}}</style></head><body>
+    ${company.logo?`<img src="${company.logo}" style="height:50px;margin-bottom:10px;display:block"/>`:""}
+    <h1>${company.name||"Bakery"} — Monthly Stock Statement</h1><h2>${monthLabel}</h2>
+    <div class="summary">
+      <div class="scard"><div class="slabel">Total purchased</div><div class="sval">₦${Math.round(totalPurchased).toLocaleString()}</div></div>
+      <div class="scard"><div class="slabel">Used in production</div><div class="sval">₦${Math.round(totalUsedValue).toLocaleString()}</div></div>
+      <div class="scard"><div class="slabel">Production orders</div><div class="sval">${monthProds.length}</div></div>
+    </div>
+    <table><tr><th>Item</th><th>Unit</th><th class="right">Opening stock</th><th class="right" style="color:#1D9E75">+ Purchased</th><th class="right" style="color:#B03A2E">− Used</th><th class="right">Closing stock</th><th class="right">Cost/unit</th></tr>
+    ${inventory.map(item=>{
+      const opening=getOSQty(item.id)
+      const closing=item.stock
+      const used=Math.max(0,opening-closing)
+      return`<tr><td>${item.name}</td><td>${item.unit}</td><td class="right">${opening} ${item.unit}</td><td class="right" style="color:#1D9E75">see receipts</td><td class="right" style="color:#B03A2E">−${used.toFixed(2)} ${item.unit}</td><td class="right"><strong>${closing} ${item.unit}</strong></td><td class="right">₦${Math.round(item.cost).toLocaleString()}</td></tr>`
+    }).join("")}
+    <tr class="total"><td colspan="5" class="right">Total closing stock value</td><td class="right" colspan="2" style="color:${company.primaryColor||"#C8912A"};font-size:15px">₦${Math.round(inventory.reduce((s,i)=>s+i.stock*i.cost,0)).toLocaleString()}</td></tr></table>
+    <p style="font-size:11px;color:#aaa;margin-top:24px">Generated by LayerLedger · ${new Date().toLocaleDateString()}</p>
+    <script>window.print()<\/script></body></html>`)
+    w.document.close()
+  }
+
+  return <div>
+    <SHead title="Monthly Stock Statement" sub="Auto-generated from opening stock, purchases, and production deductions."/>
+    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,flexWrap:"wrap"}}>
+      <select value={sel} onChange={e=>setSel(e.target.value)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid var(--border)",background:"var(--panel)",fontSize:13,color:"var(--text)"}}>
+        {(allMonths.length?allMonths:[cur]).map(m=><option key={m} value={m}>{new Date(m+"-02").toLocaleDateString("en-NG",{month:"long",year:"numeric"})}</option>)}
+      </select>
+      <Btn onClick={dl} variant="outline">📥 Download PDF</Btn>
+    </div>
+
+    {osItems.length===0&&<Alert msg={`No opening stock locked for ${monthLabel}. Go to Settings → Opening Stock to set it.`} color="gold"/>}
+
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:16}}>
+      {[{l:"Total Purchased",v:fmt(totalPurchased),s:"from receipts this month",c:"#357A52"},
+        {l:"Used in Production",v:fmt(totalUsedValue),s:`${monthProds.length} orders`,c:"#B03A2E"},
+        {l:"Closing Stock Value",v:fmt(inventory.reduce((s,i)=>s+i.stock*i.cost,0)),s:"current live value",c:"var(--gold)"}
+      ].map(s=><Card key={s.l}><div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:5}}>{s.l}</div><div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700,color:s.c}}>{s.v}</div><div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>{s.s}</div></Card>)}
+    </div>
+
+    <Card style={{padding:0,overflowX:"auto"}}>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+        <TH cols={["Item","Unit","Opening stock","− Used in prod.","Closing stock","Cost/unit","Closing value"]}/>
+        <tbody>{inventory.map((item,i)=>{
+          const opening=getOSQty(item.id)
+          const closing=item.stock
+          const used=Math.max(0,parseFloat((opening-closing).toFixed(3)))
+          return <TR2 key={item.id} i={i} row={[
+            <span style={{fontWeight:500}}>{item.name}</span>,
+            <span style={{color:"var(--muted)"}}>{item.unit}</span>,
+            <span>{opening} {item.unit}</span>,
+            <span style={{color:"#B03A2E"}}>−{used} {item.unit}</span>,
+            <span style={{fontWeight:600,color:closing<=(item.minStock||5)?"#B03A2E":"#357A52"}}>{closing} {item.unit}</span>,
+            <span style={{color:"var(--gold)"}}>{fmt(item.cost)}/{item.unit}</span>,
+            <span style={{fontWeight:500}}>{fmt(closing*item.cost)}</span>,
+          ]}/>
+        })}</tbody>
+        <tfoot><tr style={{background:"#F5F0E4"}}>
+          <td colSpan={6} style={{padding:"10px",textAlign:"right",fontWeight:700,fontSize:13}}>Total closing stock value</td>
+          <td style={{padding:"10px",textAlign:"left",fontWeight:700,color:"var(--gold)",fontSize:15}}>{fmt(inventory.reduce((s,i)=>s+i.stock*i.cost,0))}</td>
+        </tr></tfoot>
+      </table>
+    </Card>
+    <div style={{marginTop:10,fontSize:11.5,color:"var(--muted)",lineHeight:1.7}}>Opening stock is locked in Settings → Opening Stock at the start of each month. Closing stock is the live current quantity. Used in production is calculated as opening − closing.</div>
+  </div>
+}
+
+// ═══════════════════════════════════════════════════════════
 //  SETTINGS (separate page)
 // ═══════════════════════════════════════════════════════════
-function Settings({company,setCompany,settings,setSettings,users,setUsers}){
+function Settings({company,setCompany,settings,setSettings,users,setUsers,inventory}){
   const [tab,setTab]=useState("company")
   const logoRef=useRef()
   const [newUser,setNewUser]=useState({name:"",role:"production",pin:""})
@@ -1736,7 +1906,7 @@ function Settings({company,setCompany,settings,setSettings,users,setUsers}){
 
   return <div>
     <SHead title="Settings" sub="Company profile, pricing, users, and access control."/>
-    <Tabs tabs={[{v:"company",l:"Company"},{v:"pricing",l:"Pricing & Margins"},{v:"users",l:"Users & Access"}]} active={tab} onChange={setTab}/>
+    <Tabs tabs={[{v:"company",l:"Company"},{v:"pricing",l:"Pricing & Margins"},{v:"stock",l:"Opening Stock"},{v:"users",l:"Users & Access"}]} active={tab} onChange={setTab}/>
 
     {tab==="company"&&<div style={{maxWidth:540}}>
       <Card>
@@ -1793,6 +1963,8 @@ function Settings({company,setCompany,settings,setSettings,users,setUsers}){
         <div style={{padding:"8px 12px",background:"#FFF9EE",borderRadius:8,fontSize:12.5,color:"#9A6C1A"}}>💡 Tip: For recurring printout costs, increase the accessory margin by 2-3%. For one-off custom work, log it as a manual expense on that date.</div>
       </Card>
     </div>}
+
+    {tab==="stock"&&<OpeningStockTab inventory={inventory}/>}
 
     {tab==="users"&&<div>
       <div style={{marginBottom:14,padding:"10px 14px",background:"#EEF8F3",borderRadius:8,fontSize:13,color:"#2D7A50",border:"1px solid #C2E0CF"}}>
@@ -1883,6 +2055,7 @@ export default function App(){
     {id:"records",label:"Records",icon:"≡",roles:["owner","customer_service"]},
     {id:"bank",label:"Bank Import",icon:"⊞",roles:["owner"]},
     {id:"reports",label:"Reports",icon:"◎",roles:["owner"]},
+    {id:"stockstatement",label:"Stock Statement",icon:"📋",roles:["owner"]},
     {id:"shopping",label:"Shopping List",icon:"🛒",roles:["owner","production"]},
     {id:"invoices",label:"Invoices",icon:"📄",roles:["owner","customer_service"]},
     {id:"settings",label:"Settings",icon:"⚙",roles:["owner"]},
@@ -1952,9 +2125,10 @@ export default function App(){
             {view==="records"    &&<Records productions={productions} setProductions={setProductions} setView={setView} setPrefillProd={setPrefillProd} user={currentUser}/>}
             {view==="bank"       &&<BankImport transactions={transactions} setTransactions={setTransactions} productions={productions} expenses={expenses} setExpenses={setExpenses}/>}
             {view==="reports"    &&<Reports productions={productions} transactions={transactions} expenses={expenses} company={company}/>}
+            {view==="stockstatement"&&<StockStatement inventory={inventory} productions={productions} expenses={expenses} company={company}/>}
             {view==="shopping"   &&<ShoppingList inventory={inventory} company={company}/>}
             {view==="invoices"   &&<Invoices productions={productions} company={company} prefillProd={prefillProd} setPrefillProd={setPrefillProd}/>}
-            {view==="settings"   &&<Settings company={company} setCompany={setCompany} settings={settings} setSettings={setSettings} users={users} setUsers={setUsers}/>}
+            {view==="settings"   &&<Settings company={company} setCompany={setCompany} settings={settings} setSettings={setSettings} users={users} setUsers={setUsers} inventory={inventory}/>}
           </>}
         </div>
       </div>
