@@ -263,7 +263,7 @@ function Dashboard({productions,inventory,expenses,setView,user}){
   const paid=mp.filter(p=>p.paymentType==="full"||p.paymentType==="discount"||p.paymentType==="deposit")
   const rev=paid.reduce((s,p)=>s+(p.salePrice||0),0)
   const cost=mp.reduce((s,p)=>s+(p.cost||0)+(p.deliveryCost||0),0)
-  const expTotal=expenses.filter(e=>e.date?.startsWith(m)).reduce((s,e)=>s+(e.amount||0),0)
+  const expTotal=expenses.filter(e=>e.date?.startsWith(m)&&e.category!=="Ingredients"&&e.source!=="purchase"&&e.source!=="receipt").reduce((s,e)=>s+(e.amount||0),0)
   const profit=rev-cost-expTotal
   const low=inventory.filter(i=>i.stock<=(i.minStock||3))
   const monthLabel=new Date().toLocaleDateString("en-NG",{month:"long",year:"numeric"})
