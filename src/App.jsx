@@ -320,7 +320,7 @@ function Dashboard({productions,inventory,expenses,setView,user}){
     {icon:"🎂",bg:"#FDF2DC",label:"New production entry",sub:"Log a new cake order",view:"production",roles:["owner","production"]},
     {icon:"🧾",bg:"#E8EFFC",label:"Scan purchase receipt",sub:"Update stock and costs",view:"receipts",roles:["owner","production"]},
     {icon:"💸",bg:"#E1F5EE",label:"Log cash expense",sub:"Delivery, gas, salary etc.",view:"expenses",roles:["owner"]},
-    {icon:"📅",bg:"#FAEEDA",label:"Production list",sub:"Orders due this week",view:"records",roles:["owner","production"]},
+    {icon:"📅",bg:"#FAEEDA",label:"Production list",sub:"Orders due this week",view:"prodlist",roles:["owner","production"]},
     {icon:"📄",bg:"#F0EAFC",label:"Create invoice",sub:"Generate client invoice",view:"invoices",roles:["owner","customer_service"]},
   ].filter(a=>a.roles.includes(user?.role))
 
@@ -413,7 +413,14 @@ function Dashboard({productions,inventory,expenses,setView,user}){
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         <Card>
-          <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:10}}>Recent orders</div>
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:8}}>Recent orders</div>
+          {user?.role==="owner"&&(()=>{
+            const unpaid=productions.filter(p=>p.paymentType==="deposit"||p.paymentType==="unpaid"||!p.paymentType)
+            const outstanding=unpaid.reduce((s,p)=>s+(p.salePrice||0)-(p.depositAmount||0),0)
+            return outstanding>0?<div style={{background:"#FDEBE9",border:"1px solid #F09595",borderRadius:7,padding:"7px 10px",fontSize:12.5,color:"#B03A2E",marginBottom:10,display:"flex",justifyContent:"space-between"}}>
+              <span>Outstanding balance</span><strong>{fmt(outstanding)}</strong>
+            </div>:null
+          })()}
           {productions.length===0
             ?<div style={{fontSize:13,color:"var(--muted)"}}>No orders yet — log your first production.</div>
             :productions.slice(0,4).map(p=><div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:"1px solid var(--border)"}}>
@@ -1905,6 +1912,151 @@ function Invoices({productions,company,prefillProd,setPrefillProd}){
 }
 
 // ═══════════════════════════════════════════════════════════
+//  USER ROW (standalone to allow useState per row)
+// ═══════════════════════════════════════════════════════════
+function UserRow({u,i,updatePin,toggleUser,deleteUser}){
+  const [editPin,setEditPin]=useState(u.pin)
+  const [showPin,setShowPin]=useState(false)
+  return <TR2 i={i} row={[
+    <div>
+      <div style={{fontWeight:500}}>{u.name}</div>
+      <div style={{fontSize:11,color:"var(--muted)",marginTop:1}}>{u.id==="owner"?"Main account":""}</div>
+    </div>,
+    <Badge color={u.role==="owner"?"gold":u.role==="production"?"blue":"green"}>{ROLES[u.role]?.split(" ")[0]||u.role}</Badge>,
+    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+      <input type={showPin?"text":"password"} value={editPin} onChange={e=>setEditPin(e.target.value)} style={{...iSt,width:80,padding:"4px 6px",fontSize:12}}/>
+      <span onClick={()=>setShowPin(s=>!s)} style={{fontSize:11,color:"var(--muted)",cursor:"pointer"}}>{showPin?"Hide":"Show"}</span>
+      {editPin!==u.pin&&<Btn small variant="success" onClick={()=>updatePin(u.id,editPin)}>Save</Btn>}
+    </div>,
+    <Badge color={u.active?"green":"gray"}>{u.active?"Active":"Inactive"}</Badge>,
+    <div style={{display:"flex",gap:4}}>
+      <Btn small variant="ghost" onClick={()=>toggleUser(u.id)}>{u.active?"Deactivate":"Activate"}</Btn>
+      {u.id!=="owner"&&<Btn small variant="danger" onClick={()=>deleteUser(u.id)}>×</Btn>}
+    </div>,
+  ]}/>
+}
+
+// ═══════════════════════════════════════════════════════════
+//  PRODUCTION LIST (weekly work order — printable)
+// ═══════════════════════════════════════════════════════════
+function ProductionList({productions,company,setView}){
+  const today=new Date()
+  const startOfWeek=new Date(today)
+  startOfWeek.setDate(today.getDate()-today.getDay()+1) // Monday
+  const endOfWeek=new Date(startOfWeek)
+  endOfWeek.setDate(startOfWeek.getDate()+6) // Sunday
+
+  const [weekOffset,setWeekOffset]=useState(0)
+  const ws=new Date(startOfWeek);ws.setDate(ws.getDate()+weekOffset*7)
+  const we=new Date(ws);we.setDate(ws.getDate()+6)
+
+  const fmt2=d=>new Date(d).toLocaleDateString("en-NG",{weekday:"short",day:"numeric",month:"short"})
+  const weekLabel=`${fmt2(ws)} — ${fmt2(we)}`
+
+  const weekProds=productions.filter(p=>{
+    if(!p.deliveryDate)return false
+    const d=new Date(p.deliveryDate)
+    return d>=ws&&d<=we
+  }).sort((a,b)=>new Date(a.deliveryDate)-new Date(b.deliveryDate))
+
+  const statusColor={pending:"#FAEEDA",inprogress:"#E8EFFC",ready:"#E1F5EE",delivered:"#F0EBE3"}
+  const statusText={pending:"Pending",inprogress:"In progress",ready:"Ready",delivered:"Delivered"}
+  const [statuses,setStatuses]=useState({})
+  const setStatus=(id,s)=>setStatuses(p=>({...p,[id]:s}))
+
+  const print=()=>{
+    const w=window.open("","_blank")
+    w.document.write(`<!DOCTYPE html><html><head><title>Production List ${weekLabel}</title>
+    <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;color:#291608;padding:28px;max-width:720px;margin:0 auto}
+    h1{font-size:20px;font-weight:700;color:${company?.primaryColor||"#C8912A"}}
+    h2{font-size:12px;color:#888;font-weight:400;margin:3px 0 18px}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th{background:#EDE5D6;padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:#888;font-weight:500}
+    td{padding:9px 10px;border-bottom:1px solid #E0D3BB}
+    tr:nth-child(even) td{background:#F8F3EA}
+    .status{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px}
+    @media print{button{display:none}}</style></head><body>
+    ${company?.logo?`<img src="${company.logo}" style="height:44px;margin-bottom:10px;display:block"/>`:""}
+    <h1>${company?.name||"Bakery"} — Production List</h1>
+    <h2>${weekLabel} · ${weekProds.length} order${weekProds.length!==1?"s":""}</h2>
+    <table><tr><th>#</th><th>Client</th><th>Cake</th><th>Flavour</th><th>Covering</th><th>Size</th><th>Layers</th><th>Collection</th><th>Notes</th><th>Status</th></tr>
+    ${weekProds.map((p,i)=>`<tr><td>${i+1}</td><td><strong>${p.client||"—"}</strong></td><td>${p.size||"—"}</td><td>${p.flavor||p.flavour||"—"}</td><td>${p.covering||"—"}</td><td>${p.size||"—"}</td><td>${p.layers||"—"}</td><td>${p.deliveryDate||"—"}</td><td>${p.notes||""}</td><td class="status">${statuses[p.id]||"Pending"}</td></tr>`).join("")}
+    </table>
+    ${weekProds.length===0?"<p style='margin-top:20px;color:#888'>No orders due this week.</p>":""}
+    <p style='margin-top:20px;font-size:10px;color:#aaa'>Printed from LayerLedger · ${new Date().toLocaleDateString()}</p>
+    <script>window.print()<\/script></body></html>`)
+    w.document.close()
+  }
+
+  return <div>
+    <SHead title="Production List" sub="Weekly work order — what needs to be baked and when"/>
+
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <Btn small variant="ghost" onClick={()=>setWeekOffset(w=>w-1)}>← Prev week</Btn>
+        <div style={{fontSize:13,fontWeight:500,color:"var(--text)",minWidth:200,textAlign:"center"}}>{weekLabel}</div>
+        <Btn small variant="ghost" onClick={()=>setWeekOffset(w=>w+1)}>Next week →</Btn>
+        {weekOffset!==0&&<Btn small variant="outline" onClick={()=>setWeekOffset(0)}>This week</Btn>}
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        <Btn small onClick={print}>📥 Print / Download</Btn>
+        <Btn small onClick={()=>setView("production")}>+ New order</Btn>
+      </div>
+    </div>
+
+    {weekProds.length===0
+      ?<Card style={{textAlign:"center",padding:40}}>
+          <div style={{fontSize:24,marginBottom:10}}>🎂</div>
+          <div style={{fontSize:15,fontWeight:500,color:"var(--text)",marginBottom:6}}>No orders this week</div>
+          <div style={{fontSize:13,color:"var(--muted)",marginBottom:16}}>Nothing due between {fmt2(ws)} and {fmt2(we)}.</div>
+          <Btn onClick={()=>setView("production")}>Log a new production order</Btn>
+        </Card>
+      :<div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {weekProds.map((p,i)=>{
+          const st=statuses[p.id]||"pending"
+          return <Card key={p.id} style={{borderLeft:`4px solid ${st==="ready"?"#357A52":st==="inprogress"?"#378ADD":st==="delivered"?"#888780":"#C8912A"}`,padding:"14px 16px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                  <span style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,color:"var(--text)"}}>{p.client||"Unknown client"}</span>
+                  <span style={{fontSize:11,background:"#F5F0E4",color:"var(--muted)",padding:"2px 8px",borderRadius:20}}>Order {i+1} of {weekProds.length}</span>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:8,fontSize:12.5}}>
+                  {[
+                    {l:"Size",v:p.size||"—"},
+                    {l:"Flavour",v:p.flavor||p.flavour||"—"},
+                    {l:"Covering",v:p.covering||"—"},
+                    {l:"Layers",v:p.layers||"—"},
+                    {l:"Collection",v:p.deliveryDate||"—"},
+                  ].map(f=><div key={f.l}>
+                    <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:.8,marginBottom:2}}>{f.l}</div>
+                    <div style={{fontWeight:500,color:"var(--text)"}}>{f.v}</div>
+                  </div>)}
+                </div>
+                {p.notes&&<div style={{marginTop:8,fontSize:12,color:"var(--muted)",background:"#F5F0E4",padding:"5px 9px",borderRadius:6}}>📝 {p.notes}</div>}
+              </div>
+              <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8,flexShrink:0}}>
+                <select value={st} onChange={e=>setStatus(p.id,e.target.value)} style={{padding:"5px 10px",borderRadius:8,border:"1px solid var(--border)",background:statusColor[st]||"var(--panel)",fontSize:12,color:"var(--text)",cursor:"pointer"}}>
+                  <option value="pending">Pending</option>
+                  <option value="inprogress">In progress</option>
+                  <option value="ready">Ready</option>
+                  <option value="delivered">Delivered</option>
+                </select>
+                <div style={{fontSize:11,color:"var(--muted)"}}>Due {p.deliveryDate}</div>
+              </div>
+            </div>
+          </Card>
+        })}
+        <div style={{padding:"10px 14px",background:"#F5F0E4",borderRadius:8,fontSize:12.5,color:"var(--muted)",display:"flex",justifyContent:"space-between"}}>
+          <span>{weekProds.length} order{weekProds.length!==1?"s":""} this week</span>
+          <span>Pending: {weekProds.filter(p=>!statuses[p.id]||statuses[p.id]==="pending").length} · Ready: {weekProds.filter(p=>statuses[p.id]==="ready").length}</span>
+        </div>
+      </div>
+    }
+  </div>
+}
+
+// ═══════════════════════════════════════════════════════════
 //  MONTHLY OVERVIEW (replaces Reports + Stock Statement)
 // ═══════════════════════════════════════════════════════════
 function MonthlyOverview({inventory,productions,expenses,company}){
@@ -2434,22 +2586,7 @@ function Settings({company,setCompany,settings,setSettings,users,setUsers,invent
       <div style={{overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",background:"var(--panel)",borderRadius:10,overflow:"hidden",border:"1px solid var(--border)"}}>
           <TH cols={["User","Role","PIN","Status","Actions"]}/>
-          <tbody>{users.map((u,i)=>{
-            const [editPin,setEditPin]=useState(u.pin)
-            return <TR2 key={u.id} i={i} row={[
-              <span style={{fontWeight:500}}>{u.name}</span>,
-              <Badge color={u.role==="owner"?"gold":u.role==="production"?"blue":"green"}>{ROLES[u.role]?.split(" ")[0]}</Badge>,
-              <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                <input type="password" value={editPin} onChange={e=>setEditPin(e.target.value)} style={{...iSt,width:80,padding:"4px 6px",fontSize:12}}/>
-                {editPin!==u.pin&&<Btn small variant="success" onClick={()=>updatePin(u.id,editPin)}>Save</Btn>}
-              </div>,
-              <Badge color={u.active?"green":"gray"}>{u.active?"Active":"Inactive"}</Badge>,
-              <div style={{display:"flex",gap:4}}>
-                <Btn small variant="ghost" onClick={()=>toggleUser(u.id)}>{u.active?"Deactivate":"Activate"}</Btn>
-                {u.id!=="owner"&&<Btn small variant="danger" onClick={()=>deleteUser(u.id)}>×</Btn>}
-              </div>,
-            ]}/>
-          })}</tbody>
+          <tbody>{users.map((u,i)=><UserRow key={u.id} u={u} i={i} updatePin={updatePin} toggleUser={toggleUser} deleteUser={deleteUser}/>)}</tbody>
         </table>
       </div>
     </div>}
@@ -2672,6 +2809,7 @@ export default function App(){
     {id:"receipts",label:"Receipt Scanner",icon:"🧾",roles:["owner","production"]},
     {id:"shopping",label:"Shopping List",icon:"🛒",roles:["owner","production"]},
     {id:"records",label:"Records",icon:"≡",roles:["owner","customer_service"]},
+    {id:"prodlist",label:"Production List",icon:"📅",roles:["owner","production"]},
     {id:"invoices",label:"Invoices",icon:"📄",roles:["owner","customer_service"]},
     {id:"_accounts",label:"Accounts",icon:"",roles:["owner"],divider:true},
     {id:"purchases",label:"Purchases",icon:"🛍",roles:["owner"]},
@@ -2759,6 +2897,7 @@ export default function App(){
             {view==="purchases"  &&<Purchases inventory={inventory} setInventory={setInventory} expenses={expenses} setExpenses={setExpenses}/>}
             {view==="expenses"   &&<Expenses expenses={expenses} setExpenses={setExpenses}/>}
             {view==="records"    &&<Records productions={productions} setProductions={setProductions} setView={setView} setPrefillProd={setPrefillProd} user={currentUser}/>}
+            {view==="prodlist"   &&<ProductionList productions={productions} company={company} setView={setView}/>}
             {view==="bank"       &&<BankImport transactions={transactions} setTransactions={setTransactions} productions={productions} expenses={expenses} setExpenses={setExpenses}/>}
             {view==="monthly"    &&<MonthlyOverview inventory={inventory} productions={productions} expenses={expenses} company={company}/>}
             {view==="shopping"   &&<ShoppingList inventory={inventory} company={company}/>}

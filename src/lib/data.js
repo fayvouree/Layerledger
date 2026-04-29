@@ -20,7 +20,7 @@ export const loadCompany     = () => LS.get('ll_co', { name:'Fayvouree Cakes', t
 export const saveCompany     = (v) => LS.set('ll_co', v)
 export const loadInvoices    = () => LS.get('ll_inv2', [])
 export const saveInvoice     = (v) => LS.set('ll_inv2', [v, ...LS.get('ll_inv2', []).filter(i => i.id !== v.id)])
-export const loadUsers       = () => LS.get('ll_users', [{ id:'owner', name:'Business Owner', role:'owner', pin:'1234', active:true }])
+export const loadUsers       = () => LS.get('ll_users', [{ id:'owner', name:'Owner', role:'owner', pin:'1234', active:true }])
 export const saveUsers       = (v) => LS.set('ll_users', v)
 export const loadRecipes     = () => LS.get('ll_recipes', null)
 export const saveRecipes     = (v) => LS.set('ll_recipes', v)
