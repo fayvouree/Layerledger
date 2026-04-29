@@ -269,8 +269,58 @@ function Dashboard({productions,inventory,expenses,setView,user}){
   const monthLabel=new Date().toLocaleDateString("en-NG",{month:"long",year:"numeric"})
   const canAccess = (v) => user?.role === 'owner' || (user?.role === 'customer_service' && ['records'].includes(v))
 
+  // Month-end notification logic
+  const today=new Date()
+  const daysInMonth=new Date(today.getFullYear(),today.getMonth()+1,0).getDate()
+  const dayOfMonth=today.getDate()
+  const daysLeft=daysInMonth-dayOfMonth
+  const isFirstOfMonth=dayOfMonth===1
+  const notifDays=parseInt(localStorage.getItem("ll_notif_days")||"2")
+  const notifEnabled=localStorage.getItem("ll_notif_enabled")!=="false"
+  const [bannerDismissed,setBannerDismissed]=useState(false)
+
+  // Auto-set opening stock on 1st of month
+  const autoStockEnabled=localStorage.getItem("ll_auto_stock")!=="false"
+  if(isFirstOfMonth&&autoStockEnabled&&user?.role==="owner"){
+    const monthKey="ll_os_"+today.toISOString().slice(0,7)
+    if(!localStorage.getItem(monthKey)){
+      const snapshot={date:today.toISOString(),items:inventory.map(i=>({id:i.id,name:i.name,unit:i.unit,openingQty:i.stock,cost:i.cost}))}
+      localStorage.setItem(monthKey,JSON.stringify(snapshot))
+    }
+  }
+
+  const showBanner=notifEnabled&&user?.role==="owner"&&!bannerDismissed&&(daysLeft<=(+notifDays)||isFirstOfMonth)
+  const dismissBanner=()=>{localStorage.setItem("ll_banner_dismissed",today.toISOString().slice(0,10));setBannerDismissed(true)}
+
+  // Previous month label for statement download
+  const prevMonth=new Date(today.getFullYear(),today.getMonth()-1,1).toLocaleDateString("en-NG",{month:"long",year:"numeric"})
+
   return <div>
     <SHead title={`Good day, ${user?.name?.split(" ")[0]}! 👋`} sub={`${monthLabel} overview`}/>
+
+    {showBanner&&<div style={{marginBottom:14,borderRadius:10,overflow:"hidden",border:`1px solid ${isFirstOfMonth?"#5DCAA5":daysLeft===0?"#F09595":"#FAC775"}`}}>
+      <div style={{background:isFirstOfMonth?"#E1F5EE":daysLeft===0?"#FCEBEB":"#FFF9EE",padding:"11px 16px",display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+          <div style={{width:16,height:16,borderRadius:"50%",background:isFirstOfMonth?"#0F6E56":daysLeft===0?"#A32D2D":"#BA7517",flexShrink:0,marginTop:2}}/>
+          <div>
+            <div style={{fontSize:13,fontWeight:500,color:isFirstOfMonth?"#085041":daysLeft===0?"#501313":"#633806"}}>
+              {isFirstOfMonth?`New month started — ${monthLabel}`:daysLeft===0?"Today is the last day of the month":`Month closing in ${daysLeft} day${daysLeft!==1?"s":""}` }
+            </div>
+            <div style={{fontSize:12,color:isFirstOfMonth?"#0F6E56":daysLeft===0?"#791F1F":"#854F0B",marginTop:3,lineHeight:1.6}}>
+              {isFirstOfMonth?"Opening stock has been set automatically from last month's closing figures. Your "+prevMonth+" statement is ready to download.":daysLeft===0?"Lock your closing stock today. At midnight the app automatically sets next month's opening stock.":"Review your stock statement and lock closing stock before the 1st. Opening stock sets automatically."}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0,flexWrap:"wrap"}}>
+          {isFirstOfMonth
+            ?<Btn small onClick={()=>setView("stockstatement")}>Download {prevMonth} statement</Btn>
+            :<><Btn small onClick={()=>setView("stockstatement")}>View stock statement</Btn><Btn small variant="ghost" onClick={()=>setView("settings")}>Lock closing stock</Btn></>
+          }
+          <span onClick={dismissBanner} style={{fontSize:11,color:isFirstOfMonth?"#085041":daysLeft===0?"#791F1F":"#854F0B",cursor:"pointer",textDecoration:"underline"}}>Dismiss</span>
+        </div>
+      </div>
+    </div>}
+
     {user?.role==="owner"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginBottom:18}}>
       {[{label:"Revenue",val:fmt(rev),sub:`${paid.length} paid orders`,a:"var(--gold)"},{label:"Prod. Cost",val:fmt(cost),sub:"incl. delivery",a:"#2A5F9A"},{label:"Expenses",val:fmt(expTotal),sub:"other costs",a:"#8C6E52"},{label:"Net Profit",val:fmt(profit),sub:`${mp.length} total orders`,a:profit>=0?"#357A52":"#B03A2E"}].map(s=><Card key={s.label} style={{borderTop:`3px solid ${s.a}`}}>
         <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:5}}>{s.label}</div>
@@ -1761,6 +1811,79 @@ function Invoices({productions,company,prefillProd,setPrefillProd}){
 }
 
 // ═══════════════════════════════════════════════════════════
+//  NOTIFICATION SETTINGS
+// ═══════════════════════════════════════════════════════════
+function NotificationSettings(){
+  const load=(key,def)=>{const v=localStorage.getItem(key);return v===null?def:v==="true"?true:v==="false"?false:v}
+  const [notifEnabled,setNotifEnabled]=useState(()=>load("ll_notif_enabled",true))
+  const [autoStock,setAutoStock]=useState(()=>load("ll_auto_stock",true))
+  const [lowStockAlert,setLowStockAlert]=useState(()=>load("ll_lowstock_alert",true))
+  const [notifDays,setNotifDays]=useState(()=>load("ll_notif_days","2"))
+  const [saved,setSaved]=useState(false)
+
+  const save=()=>{
+    localStorage.setItem("ll_notif_enabled",notifEnabled)
+    localStorage.setItem("ll_auto_stock",autoStock)
+    localStorage.setItem("ll_lowstock_alert",lowStockAlert)
+    localStorage.setItem("ll_notif_days",notifDays)
+    setSaved(true);setTimeout(()=>setSaved(false),2500)
+  }
+
+  const Toggle=({on,onToggle})=><div onClick={onToggle} style={{width:38,height:21,borderRadius:11,background:on?"#357A52":"var(--border)",cursor:"pointer",position:"relative",transition:"background 0.2s",flexShrink:0}}>
+    <div style={{width:17,height:17,borderRadius:"50%",background:"white",position:"absolute",top:2,left:on?19:2,transition:"left 0.2s"}}/>
+  </div>
+
+  const Row=({title,sub,on,onToggle})=><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"13px 0",borderBottom:"1px solid var(--border)"}}>
+    <div style={{flex:1,paddingRight:16}}>
+      <div style={{fontSize:13,fontWeight:500,color:"var(--text)"}}>{title}</div>
+      <div style={{fontSize:11.5,color:"var(--muted)",marginTop:2,lineHeight:1.5}}>{sub}</div>
+    </div>
+    <Toggle on={on} onToggle={onToggle}/>
+  </div>
+
+  return <div style={{maxWidth:540}}>
+    <Card style={{marginBottom:14}}>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:14}}>Notification Preferences</div>
+
+      <Row title="Month-end reminder banner" sub="Shows on the dashboard in the last days of each month reminding you to lock closing stock." on={notifEnabled} onToggle={()=>setNotifEnabled(v=>!v)}/>
+      <Row title="Auto-set opening stock on the 1st" sub="Automatically locks current stock as the new month's opening stock at midnight on the 1st. After first-time setup you never have to do this manually again." on={autoStock} onToggle={()=>setAutoStock(v=>!v)}/>
+      <Row title="Low stock alerts on dashboard" sub="Shows a warning card on the dashboard whenever any ingredient falls below its minimum stock level." on={lowStockAlert} onToggle={()=>setLowStockAlert(v=>!v)}/>
+
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"13px 0"}}>
+        <div>
+          <div style={{fontSize:13,fontWeight:500,color:"var(--text)"}}>Start reminding me how many days before month end</div>
+          <div style={{fontSize:11.5,color:"var(--muted)",marginTop:2}}>How early the reminder banner starts appearing</div>
+        </div>
+        <select value={notifDays} onChange={e=>setNotifDays(e.target.value)} style={{...iSt,width:100,flexShrink:0}}>
+          {["1","2","3","5","7"].map(d=><option key={d} value={d}>{d} day{d!=="1"?"s":""}</option>)}
+        </select>
+      </div>
+
+      <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid var(--border)",display:"flex",gap:10,alignItems:"center"}}>
+        <Btn onClick={save}>Save preferences</Btn>
+        {saved&&<span style={{fontSize:12.5,color:"#357A52"}}>✓ Saved</span>}
+      </div>
+    </Card>
+
+    <Card style={{background:"#FFF9EE",borderColor:"var(--gold)"}}>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:8}}>How the month-end flow works</div>
+      <div style={{fontSize:12.5,color:"var(--muted)",lineHeight:1.8}}>
+        {[
+          "On the 29th/30th — amber reminder banner appears on your dashboard",
+          "On the last day — banner turns red and more urgent",
+          "At midnight on the 1st — app automatically locks closing stock as next month's opening stock",
+          "On the 1st when you open the app — green confirmation banner, previous month's statement ready to download",
+          "You never have to set opening stock manually again after the first time"
+        ].map((s,i)=><div key={i} style={{display:"flex",gap:8,marginBottom:6}}>
+          <span style={{color:"var(--gold)",fontWeight:700,flexShrink:0}}>{i+1}.</span>
+          <span>{s}</span>
+        </div>)}
+      </div>
+    </Card>
+  </div>
+}
+
+// ═══════════════════════════════════════════════════════════
 //  OPENING STOCK TAB (in Settings)
 // ═══════════════════════════════════════════════════════════
 function OpeningStockTab({inventory}){
@@ -1956,7 +2079,7 @@ function Settings({company,setCompany,settings,setSettings,users,setUsers,invent
 
   return <div>
     <SHead title="Settings" sub="Company profile, pricing, users, and access control."/>
-    <Tabs tabs={[{v:"company",l:"Company"},{v:"pricing",l:"Pricing & Margins"},{v:"stock",l:"Opening Stock"},{v:"users",l:"Users & Access"}]} active={tab} onChange={setTab}/>
+    <Tabs tabs={[{v:"company",l:"Company"},{v:"pricing",l:"Pricing & Margins"},{v:"stock",l:"Opening Stock"},{v:"notifications",l:"Notifications"},{v:"users",l:"Users & Access"}]} active={tab} onChange={setTab}/>
 
     {tab==="company"&&<div style={{maxWidth:540}}>
       <Card>
@@ -2015,6 +2138,7 @@ function Settings({company,setCompany,settings,setSettings,users,setUsers,invent
     </div>}
 
     {tab==="stock"&&<OpeningStockTab inventory={inventory}/>}
+    {tab==="notifications"&&<NotificationSettings/>}
 
     {tab==="users"&&<div>
       <div style={{marginBottom:14,padding:"10px 14px",background:"#EEF8F3",borderRadius:8,fontSize:13,color:"#2D7A50",border:"1px solid #C2E0CF"}}>
