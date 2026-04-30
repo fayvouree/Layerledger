@@ -1923,6 +1923,22 @@ function Invoices({productions,company,prefillProd,setPrefillProd}){
 }
 
 // ═══════════════════════════════════════════════════════════
+//  P&L STATEMENT HELPERS
+// ═══════════════════════════════════════════════════════════
+function PLSection({title,gold,children}){
+  return <div style={{marginBottom:16}}>
+    <div style={{fontSize:10.5,textTransform:"uppercase",letterSpacing:1,color:"var(--muted)",fontWeight:600,paddingBottom:6,borderBottom:`2px solid ${gold||"#C8912A"}`,marginBottom:8}}>{title}</div>
+    {children}
+  </div>
+}
+function PLRow({label,value,indent,bold,color}){
+  return <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:bold?"9px 12px":"6px 0",background:bold?"#F5F0E4":"transparent",borderRadius:bold?6:0,borderBottom:bold?"none":"1px solid var(--border)",marginTop:bold?4:0,paddingLeft:indent?16:bold?12:0}}>
+    <span style={{fontSize:bold?13.5:12.5,fontWeight:bold?600:400,color:color||"var(--text)"}}>{label}</span>
+    <span style={{fontSize:bold?14:12.5,fontWeight:bold?600:400,color:color||"var(--text)"}}>{value}</span>
+  </div>
+}
+
+// ═══════════════════════════════════════════════════════════
 //  P&L STATEMENT
 // ═══════════════════════════════════════════════════════════
 function PandL({productions,expenses,company}){
@@ -2008,16 +2024,6 @@ function PandL({productions,expenses,company}){
     w.document.close()
   }
 
-  const Section=({title,children})=><div style={{marginBottom:16}}>
-    <div style={{fontSize:10.5,textTransform:"uppercase",letterSpacing:1,color:"var(--muted)",fontWeight:600,paddingBottom:6,borderBottom:`2px solid ${gold}`,marginBottom:8}}>{title}</div>
-    {children}
-  </div>
-
-  const Row=({label,value,indent,bold,color,sub})=><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:bold?"9px 12px":"6px 0",background:bold?"#F5F0E4":sub?"#EEF8F3":"transparent",borderRadius:bold?6:0,borderBottom:bold?0:"1px solid var(--border)",marginTop:bold?4:0,paddingLeft:indent?16:bold?12:0}}>
-    <span style={{fontSize:bold?13.5:12.5,fontWeight:bold?600:400,color:color||"var(--text)"}}>{label}</span>
-    <span style={{fontSize:bold?14:12.5,fontWeight:bold?600:400,color:color||"var(--text)"}}>{value}</span>
-  </div>
-
   return <div>
     <SHead title="P&L Statement" sub="Profit & Loss — revenue, costs and net profit for the selected month"/>
     <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18,flexWrap:"wrap"}}>
@@ -2040,26 +2046,26 @@ function PandL({productions,expenses,company}){
     </div>
 
     <Card style={{maxWidth:560}}>
-      <Section title="Revenue">
-        <Row label={`Cake sales (${paid.length} paid orders)`} value={fmt(revenue)}/>
-        <Row label="Total Revenue" value={fmt(revenue)} bold/>
-      </Section>
+      <PLSection gold={gold} title="Revenue">
+        <PLRow label={`Cake sales (${paid.length} paid orders)`} value={fmt(revenue)}/>
+        <PLRow label="Total Revenue" value={fmt(revenue)} bold/>
+      </PLSection>
 
-      <Section title="Cost of Goods Sold (COGS)">
-        <Row label="Ingredient costs" value={fmt(cogsProd)} indent/>
-        <Row label="Delivery costs" value={fmt(delivery)} indent/>
-        <Row label="Total COGS" value={fmt(cogs)} bold/>
-      </Section>
+      <PLSection gold={gold} title="Cost of Goods Sold (COGS)">
+        <PLRow label="Ingredient costs" value={fmt(cogsProd)} indent/>
+        <PLRow label="Delivery costs" value={fmt(delivery)} indent/>
+        <PLRow label="Total COGS" value={fmt(cogs)} bold/>
+      </PLSection>
 
-      <Row label={`Gross Profit (${grossMargin}% margin)`} value={fmt(grossProfit)} bold color={grossProfit>=0?"#357A52":"#B03A2E"}/>
+      <PLRow label={`Gross Profit (${grossMargin}% margin)`} value={fmt(grossProfit)} bold color={grossProfit>=0?"#357A52":"#B03A2E"}/>
 
       <div style={{height:16}}/>
 
-      <Section title="Overhead Expenses">
-        {Object.entries(overheadBycat).map(([cat,amt])=><Row key={cat} label={cat} value={fmt(amt)} indent/>)}
-        {Object.keys(overheadBycat).length===0&&<Row label="No overhead expenses logged" value="₦0" indent/>}
-        <Row label="Total Overheads" value={fmt(overhead)} bold/>
-      </Section>
+      <PLSection gold={gold} title="Overhead Expenses">
+        {Object.entries(overheadBycat).map(([cat,amt])=><PLRow key={cat} label={cat} value={fmt(amt)} indent/>)}
+        {Object.keys(overheadBycat).length===0&&<PLRow label="No overhead expenses logged" value="₦0" indent/>}
+        <PLRow label="Total Overheads" value={fmt(overhead)} bold/>
+      </PLSection>
 
       <div style={{padding:"14px 16px",background:netProfit>=0?"#E8F5EE":"#FDEBE9",border:`1px solid ${netProfit>=0?"#C2E0CF":"#F09595"}`,borderRadius:10,display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}}>
         <div>
@@ -2442,9 +2448,9 @@ function NotificationSettings(){
     <Card style={{marginBottom:14}}>
       <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:14}}>Notification Preferences</div>
 
-      <Row title="Month-end reminder banner" sub="Shows on the dashboard in the last days of each month reminding you to lock closing stock." on={notifEnabled} onToggle={()=>setNotifEnabled(v=>!v)}/>
-      <Row title="Auto-set opening stock on the 1st" sub="Automatically locks current stock as the new month's opening stock at midnight on the 1st. After first-time setup you never have to do this manually again." on={autoStock} onToggle={()=>setAutoStock(v=>!v)}/>
-      <Row title="Low stock alerts on dashboard" sub="Shows a warning card on the dashboard whenever any ingredient falls below its minimum stock level." on={lowStockAlert} onToggle={()=>setLowStockAlert(v=>!v)}/>
+      <PLRow title="Month-end reminder banner" sub="Shows on the dashboard in the last days of each month reminding you to lock closing stock." on={notifEnabled} onToggle={()=>setNotifEnabled(v=>!v)}/>
+      <PLRow title="Auto-set opening stock on the 1st" sub="Automatically locks current stock as the new month's opening stock at midnight on the 1st. After first-time setup you never have to do this manually again." on={autoStock} onToggle={()=>setAutoStock(v=>!v)}/>
+      <PLRow title="Low stock alerts on dashboard" sub="Shows a warning card on the dashboard whenever any ingredient falls below its minimum stock level." on={lowStockAlert} onToggle={()=>setLowStockAlert(v=>!v)}/>
 
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"13px 0"}}>
         <div>
