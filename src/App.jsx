@@ -240,7 +240,7 @@ function Login({onLogin}){
 
   return (
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"var(--bg)"}}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500&display=swap');*{box-sizing:border-box}body{margin:0}:root{--gold:${company?.primaryColor||'#C8912A'};--sidebar:#140801;--bg:#F4EEE4;--panel:#FDFAF4;--text:#291608;--muted:#8C6E52;--border:#E0D3BB}`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500&display=swap');*{box-sizing:border-box}body{margin:0}:root{--gold:#C8912A;--sidebar:#140801;--bg:#F4EEE4;--panel:#FDFAF4;--text:#291608;--muted:#8C6E52;--border:#E0D3BB}`}</style>
       <Card style={{width:"100%",maxWidth:360,padding:32,textAlign:"center"}}>
         <div style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:"var(--gold)",fontWeight:700,marginBottom:4}}>LayerLedger</div>
         <div style={{fontSize:12,color:"var(--muted)",marginBottom:28,textTransform:"uppercase",letterSpacing:2}}>Bakery Bookkeeping</div>
@@ -2998,6 +2998,12 @@ export default function App(){
       <Login onLogin={(u)=>{setCurrentUser(u);saveSetting("lastUser",u.id);if(!localStorage.getItem("ll_onboarded"))setOnboarded(false)}}/>
     </>
   }
+
+  // Apply brand colour globally via CSS variable
+  useEffect(()=>{
+    const color=company?.primaryColor||"#C8912A"
+    document.documentElement.style.setProperty("--gold",color)
+  },[company?.primaryColor])
 
   // Show onboarding for first-time users
   if(currentUser&&!onboarded){
