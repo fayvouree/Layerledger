@@ -240,7 +240,7 @@ function Login({onLogin}){
 
   return (
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"var(--bg)"}}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500&display=swap');*{box-sizing:border-box}body{margin:0}:root{--gold:#C8912A;--sidebar:#140801;--bg:#F4EEE4;--panel:#FDFAF4;--text:#291608;--muted:#8C6E52;--border:#E0D3BB}`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500&display=swap');*{box-sizing:border-box}body{margin:0}:root{--gold:${company?.primaryColor||'#C8912A'};--sidebar:#140801;--bg:#F4EEE4;--panel:#FDFAF4;--text:#291608;--muted:#8C6E52;--border:#E0D3BB}`}</style>
       <Card style={{width:"100%",maxWidth:360,padding:32,textAlign:"center"}}>
         <div style={{fontFamily:"'Playfair Display',serif",fontSize:26,color:"var(--gold)",fontWeight:700,marginBottom:4}}>LayerLedger</div>
         <div style={{fontSize:12,color:"var(--muted)",marginBottom:28,textTransform:"uppercase",letterSpacing:2}}>Bakery Bookkeeping</div>
@@ -1885,7 +1885,18 @@ function Invoices({productions,company,prefillProd,setPrefillProd}){
           <textarea value={notes} onChange={e=>setNotes(e.target.value)} style={{...iSt,minHeight:70,resize:"vertical"}} placeholder="Payment terms, thank you note, bank details…"/>
         </div>
         <Btn full onClick={gen} disabled={!prod}>📄 Generate & Print Invoice</Btn>
-        {done&&<div style={{marginTop:8,fontSize:12.5,color:"#357A52"}}>✓ Invoice opened — print or save as PDF.</div>}
+        {done&&<div style={{marginTop:10,display:"flex",flexDirection:"column",gap:8}}>
+          <div style={{fontSize:12.5,color:"#357A52"}}>✓ Invoice generated — print or save as PDF from the opened window.</div>
+          {clientPhone&&<button onClick={()=>{
+            const phone=clientPhone.replace(/[^0-9]/g,"").replace(/^0/,"234")
+            const total=fmt((prod?.salePrice||0)+(prod?.deliveryCost||0))
+            const msg=`Hello ${prod?.client||""}! Please find your invoice for your ${prod?.size} ${prod?.covering} cake order. Invoice No: ${invNo}. Total: ${total}. Thank you for choosing ${company?.name||"us"}! 🎂`
+            window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`,"_blank")
+          }} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 16px",borderRadius:8,border:"none",background:"#25D366",color:"#fff",fontSize:13,cursor:"pointer",fontWeight:500}}>
+            <span style={{fontSize:16}}>📱</span> Send via WhatsApp
+          </button>}
+          {!clientPhone&&<div style={{fontSize:12,color:"var(--muted)"}}>Add a client phone number above to enable WhatsApp sharing.</div>}
+        </div>}
       </Card>
       <Card style={{background:"#FFF9EE",borderColor:"var(--gold)"}}>
         <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:12}}>Preview</div>
@@ -1908,6 +1919,163 @@ function Invoices({productions,company,prefillProd,setPrefillProd}){
         </div>:<div style={{textAlign:"center",padding:36,color:"var(--muted)"}}>Select an order to preview the invoice</div>}
       </Card>
     </div>
+  </div>
+}
+
+// ═══════════════════════════════════════════════════════════
+//  P&L STATEMENT
+// ═══════════════════════════════════════════════════════════
+function PandL({productions,expenses,company}){
+  const allMonths=[...new Set([
+    ...productions.map(p=>p.deliveryDate?.slice(0,7)),
+    ...expenses.map(e=>e.date?.slice(0,7)),
+  ].filter(Boolean))].sort().reverse()
+  const cur=new Date().toISOString().slice(0,7)
+  const [sel,setSel]=useState(allMonths[0]||cur)
+  const monthLabel=new Date(sel+"-02").toLocaleDateString("en-NG",{month:"long",year:"numeric"})
+  const gold=company?.primaryColor||"#C8912A"
+
+  // P&L calculations
+  const mProds=productions.filter(p=>p.deliveryDate?.startsWith(sel))
+  const paid=mProds.filter(p=>["full","discount","deposit"].includes(p.paymentType))
+  const revenue=paid.reduce((s,p)=>s+(p.salePrice||0),0)
+  const cogsProd=mProds.reduce((s,p)=>s+(p.cost||0),0)
+  const delivery=mProds.reduce((s,p)=>s+(p.deliveryCost||0),0)
+  const cogs=cogsProd+delivery
+  const grossProfit=revenue-cogs
+  const grossMargin=revenue>0?Math.round((grossProfit/revenue)*100):0
+
+  const mExp=expenses.filter(e=>e.date?.startsWith(sel)&&e.category!=="Ingredients"&&e.source!=="purchase"&&e.source!=="receipt")
+  const overhead=mExp.reduce((s,e)=>s+(e.amount||0),0)
+
+  // Group overheads by category
+  const overheadBycat=mExp.reduce((acc,e)=>{
+    const cat=e.category||"General"
+    acc[cat]=(acc[cat]||0)+(e.amount||0)
+    return acc
+  },{})
+
+  const netProfit=grossProfit-overhead
+  const netMargin=revenue>0?Math.round((netProfit/revenue)*100):0
+
+  const dl=()=>{
+    const w=window.open("","_blank")
+    w.document.write(`<!DOCTYPE html><html><head><title>P&L Statement ${monthLabel}</title>
+    <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;color:#291608;padding:36px;max-width:680px;margin:0 auto}
+    h1{font-size:22px;font-weight:700;color:${gold}}
+    h2{font-size:12px;color:#888;font-weight:400;margin:3px 0 24px}
+    .section{margin-bottom:20px}
+    .section-title{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#888;font-weight:600;padding:8px 0;border-bottom:2px solid ${gold};margin-bottom:10px}
+    .row{display:flex;justify-content:space-between;padding:7px 0;font-size:13px;border-bottom:1px solid #F0EBE3}
+    .row.indent{padding-left:16px;color:#555}
+    .row.subtotal{font-weight:600;background:#F5F0E4;padding:8px 10px;border-radius:4px;margin:4px 0}
+    .row.total{font-weight:700;font-size:15px;padding:12px 14px;background:${netProfit>=0?"#E8F5EE":"#FDEBE9"};border-radius:8px;color:${netProfit>=0?"#1D6B40":"#B03A2E"};margin-top:8px}
+    .positive{color:#1D6B40}.negative{color:#B03A2E}
+    .summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0}
+    .scard{border:1px solid #E0D3BB;border-radius:8px;padding:12px;text-align:center}
+    .slabel{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:#888;margin-bottom:4px}
+    .sval{font-size:18px;font-weight:700;color:${gold}}
+    @media print{button{display:none}}</style></head><body>
+    ${company?.logo?`<img src="${company.logo}" style="height:44px;margin-bottom:12px;display:block"/>`:""}
+    <h1>${company?.name||"Bakery"} — Profit & Loss Statement</h1>
+    <h2>${monthLabel}</h2>
+    <div class="summary">
+      <div class="scard"><div class="slabel">Revenue</div><div class="sval">₦${Math.round(revenue).toLocaleString()}</div></div>
+      <div class="scard"><div class="slabel">Gross margin</div><div class="sval">${grossMargin}%</div></div>
+      <div class="scard"><div class="slabel">Net margin</div><div class="sval ${netMargin>=0?"positive":"negative"}">${netMargin}%</div></div>
+    </div>
+    <div class="section">
+      <div class="section-title">Revenue</div>
+      <div class="row"><span>Cake sales (${paid.length} orders)</span><span>₦${Math.round(revenue).toLocaleString()}</span></div>
+      <div class="row subtotal"><span>Total Revenue</span><span>₦${Math.round(revenue).toLocaleString()}</span></div>
+    </div>
+    <div class="section">
+      <div class="section-title">Cost of Goods Sold</div>
+      <div class="row indent"><span>Ingredient costs</span><span>₦${Math.round(cogsProd).toLocaleString()}</span></div>
+      <div class="row indent"><span>Delivery costs</span><span>₦${Math.round(delivery).toLocaleString()}</span></div>
+      <div class="row subtotal"><span>Total COGS</span><span>₦${Math.round(cogs).toLocaleString()}</span></div>
+    </div>
+    <div class="row subtotal" style="font-size:14px;margin-bottom:20px"><span>Gross Profit</span><span class="${grossProfit>=0?"positive":"negative"}">₦${Math.round(grossProfit).toLocaleString()} (${grossMargin}%)</span></div>
+    <div class="section">
+      <div class="section-title">Overhead Expenses</div>
+      ${Object.entries(overheadBycat).map(([cat,amt])=>`<div class="row indent"><span>${cat}</span><span>₦${Math.round(amt).toLocaleString()}</span></div>`).join("")}
+      ${Object.keys(overheadBycat).length===0?'<div class="row indent"><span>No overhead expenses</span><span>₦0</span></div>':""}
+      <div class="row subtotal"><span>Total Overheads</span><span>₦${Math.round(overhead).toLocaleString()}</span></div>
+    </div>
+    <div class="row total"><span>Net Profit / (Loss)</span><span>₦${Math.round(netProfit).toLocaleString()} (${netMargin}%)</span></div>
+    <p style="margin-top:28px;font-size:10px;color:#aaa">Generated by LayerLedger · ${new Date().toLocaleDateString()} · This is a management account and not a certified financial statement.</p>
+    <script>window.print()<\/script></body></html>`)
+    w.document.close()
+  }
+
+  const Section=({title,children})=><div style={{marginBottom:16}}>
+    <div style={{fontSize:10.5,textTransform:"uppercase",letterSpacing:1,color:"var(--muted)",fontWeight:600,paddingBottom:6,borderBottom:`2px solid ${gold}`,marginBottom:8}}>{title}</div>
+    {children}
+  </div>
+
+  const Row=({label,value,indent,bold,color,sub})=><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:bold?"9px 12px":"6px 0",background:bold?"#F5F0E4":sub?"#EEF8F3":"transparent",borderRadius:bold?6:0,borderBottom:bold?0:"1px solid var(--border)",marginTop:bold?4:0,paddingLeft:indent?16:bold?12:0}}>
+    <span style={{fontSize:bold?13.5:12.5,fontWeight:bold?600:400,color:color||"var(--text)"}}>{label}</span>
+    <span style={{fontSize:bold?14:12.5,fontWeight:bold?600:400,color:color||"var(--text)"}}>{value}</span>
+  </div>
+
+  return <div>
+    <SHead title="P&L Statement" sub="Profit & Loss — revenue, costs and net profit for the selected month"/>
+    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18,flexWrap:"wrap"}}>
+      <select value={sel} onChange={e=>setSel(e.target.value)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid var(--border)",background:"var(--panel)",fontSize:13,color:"var(--text)"}}>
+        {(allMonths.length?allMonths:[cur]).map(m=><option key={m} value={m}>{new Date(m+"-02").toLocaleDateString("en-NG",{month:"long",year:"numeric"})}</option>)}
+      </select>
+      <Btn onClick={dl}>📥 Download PDF</Btn>
+    </div>
+
+    {/* SUMMARY CARDS */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:20}}>
+      {[
+        {l:"Revenue",v:fmt(revenue),c:gold},
+        {l:"Gross margin",v:grossMargin+"%",c:grossMargin>=50?"#357A52":"#B03A2E"},
+        {l:"Net margin",v:netMargin+"%",c:netMargin>=30?"#357A52":"#B03A2E"},
+      ].map(s=><Card key={s.l} style={{textAlign:"center",padding:"14px"}}>
+        <div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>{s.l}</div>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:700,color:s.c}}>{s.v}</div>
+      </Card>)}
+    </div>
+
+    <Card style={{maxWidth:560}}>
+      <Section title="Revenue">
+        <Row label={`Cake sales (${paid.length} paid orders)`} value={fmt(revenue)}/>
+        <Row label="Total Revenue" value={fmt(revenue)} bold/>
+      </Section>
+
+      <Section title="Cost of Goods Sold (COGS)">
+        <Row label="Ingredient costs" value={fmt(cogsProd)} indent/>
+        <Row label="Delivery costs" value={fmt(delivery)} indent/>
+        <Row label="Total COGS" value={fmt(cogs)} bold/>
+      </Section>
+
+      <Row label={`Gross Profit (${grossMargin}% margin)`} value={fmt(grossProfit)} bold color={grossProfit>=0?"#357A52":"#B03A2E"}/>
+
+      <div style={{height:16}}/>
+
+      <Section title="Overhead Expenses">
+        {Object.entries(overheadBycat).map(([cat,amt])=><Row key={cat} label={cat} value={fmt(amt)} indent/>)}
+        {Object.keys(overheadBycat).length===0&&<Row label="No overhead expenses logged" value="₦0" indent/>}
+        <Row label="Total Overheads" value={fmt(overhead)} bold/>
+      </Section>
+
+      <div style={{padding:"14px 16px",background:netProfit>=0?"#E8F5EE":"#FDEBE9",border:`1px solid ${netProfit>=0?"#C2E0CF":"#F09595"}`,borderRadius:10,display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}}>
+        <div>
+          <div style={{fontSize:11,color:netProfit>=0?"#085041":"#501313",textTransform:"uppercase",letterSpacing:.8,marginBottom:3}}>Net Profit / (Loss)</div>
+          <div style={{fontSize:11,color:netProfit>=0?"#0F6E56":"#791F1F"}}>{monthLabel}</div>
+        </div>
+        <div style={{textAlign:"right"}}>
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:24,fontWeight:700,color:netProfit>=0?"#357A52":"#B03A2E"}}>{fmt(netProfit)}</div>
+          <div style={{fontSize:12,color:netProfit>=0?"#357A52":"#B03A2E"}}>{netMargin}% net margin</div>
+        </div>
+      </div>
+
+      <div style={{marginTop:12,fontSize:11,color:"var(--muted)",lineHeight:1.6}}>
+        This is a management account generated by LayerLedger. It is not a certified financial statement.
+      </div>
+    </Card>
   </div>
 }
 
@@ -2817,6 +2985,7 @@ export default function App(){
     {id:"bank",label:"Bank Import",icon:"⊞",roles:["owner"]},
     {id:"_reports",label:"Reports",icon:"",roles:["owner"],divider:true},
     {id:"monthly",label:"Monthly Overview",icon:"📊",roles:["owner"]},
+    {id:"pandl",label:"P&L Statement",icon:"📑",roles:["owner"]},
     {id:"_system",label:"System",icon:"",roles:["owner","production","customer_service"],divider:true},
     {id:"settings",label:"Settings",icon:"⚙",roles:["owner"]},
   ].filter(n=>n.roles.includes(role))
@@ -2900,6 +3069,7 @@ export default function App(){
             {view==="prodlist"   &&<ProductionList productions={productions} company={company} setView={setView}/>}
             {view==="bank"       &&<BankImport transactions={transactions} setTransactions={setTransactions} productions={productions} expenses={expenses} setExpenses={setExpenses}/>}
             {view==="monthly"    &&<MonthlyOverview inventory={inventory} productions={productions} expenses={expenses} company={company}/>}
+            {view==="pandl"      &&<PandL productions={productions} expenses={expenses} company={company}/>}
             {view==="shopping"   &&<ShoppingList inventory={inventory} company={company}/>}
             {view==="invoices"   &&<Invoices productions={productions} company={company} prefillProd={prefillProd} setPrefillProd={setPrefillProd}/>}
             {view==="settings"   &&<Settings company={company} setCompany={setCompany} settings={settings} setSettings={setSettings} users={users} setUsers={setUsers} inventory={inventory}/>}
