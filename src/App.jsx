@@ -142,7 +142,7 @@ async function callClaude(messages, system="") {
   if (!apiKey) {
     throw new Error("No API key set. Go to Settings → AI Features and enter your Anthropic API key.")
   }
-  const res = await fetch("/api/claude", {
+  const res = await fetch("/.netlify/functions/claude", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -3308,7 +3308,7 @@ function Settings({company,setCompany,settings,setSettings,users,setUsers,invent
             const key=localStorage.getItem("ll_anthropic_key")||""
             if(!key){alert("Please enter your API key first.");return}
             try{
-              const r=await fetch("/api/claude",{method:"POST",headers:{"Content-Type":"application/json","x-ll-key":key},body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:10,messages:[{role:"user",content:"hi"}]})})
+              const r=await fetch("/.netlify/functions/claude",{method:"POST",headers:{"Content-Type":"application/json","x-ll-key":key},body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:10,messages:[{role:"user",content:"hi"}]})})
               const d=await r.json()
               if(d.error)alert("❌ Key invalid: "+d.error.message)
               else alert("✅ API key is working correctly!")
