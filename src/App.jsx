@@ -142,14 +142,14 @@ async function callClaude(messages, system="") {
   if (!apiKey) {
     throw new Error("No API key set. Go to Settings → AI Features and enter your Anthropic API key.")
   }
-  const res = await fetch("/.netlify/functions/claude", {
+  const res = await fetch("/claude", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "x-ll-key": apiKey
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-6",
+      model: "claude-sonnet-4-20250514",
       max_tokens: 4000,
       system,
       messages

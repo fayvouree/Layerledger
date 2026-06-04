@@ -1,51 +1,89 @@
+// functions/claude.js  — Cloudflare Pages Function
+// Proxies requests to Anthropic API and handles CORS preflight (OPTIONS)
+
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, x-ll-key",
+  "Access-Control-Max-Age": "86400",
+};
+
 export async function onRequest(context) {
   const { request } = context;
 
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, x-ll-key",
-    "Content-Type": "application/json"
-  };
-
+  // ── 1. Handle CORS preflight ──────────────────────────────────────────────
   if (request.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders });
-  }
-
-  if (request.method !== "POST") {
-    return new Response(JSON.stringify({ error: { message: "Method not allowed" } }), {
-      status: 405, headers: corsHeaders
+    return new Response(null, {
+      status: 204,
+      headers: CORS_HEADERS,
     });
   }
 
+  // ── 2. Only allow POST beyond this point ──────────────────────────────────
+  if (request.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
+  }
+
+  // ── 3. Extract API key from header ────────────────────────────────────────
+  const apiKey = request.headers.get("x-ll-key");
+  if (!apiKey || !apiKey.startsWith("sk-ant-")) {
+    return new Response(
+      JSON.stringify({ error: "Missing or invalid Anthropic API key. Add it in Settings → AI Features." }),
+      {
+        status: 401,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      }
+    );
+  }
+
+  // ── 4. Parse request body ─────────────────────────────────────────────────
+  let body;
   try {
-    // Get API key from request header (sent by the app from localStorage)
-    const apiKey = request.headers.get("x-ll-key") || "";
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: { message: "No API key provided. Enter your Anthropic API key in Settings → AI Features." } }), {
-        status: 401, headers: corsHeaders
-      });
-    }
+    body = await request.json();
+  } catch {
+    return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+      status: 400,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
+  }
 
-    const body = await request.json();
-
-    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+  // ── 5. Forward to Anthropic ───────────────────────────────────────────────
+  let anthropicResponse;
+  try {
+    anthropicResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-api-key": apiKey,
-        "anthropic-version": "2024-10-22",
-        "anthropic-beta": "pdfs-2024-09-25"
+        "anthropic-version": "2023-06-01",
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify({
+        model: body.model ?? "claude-sonnet-4-20250514",
+        max_tokens: body.max_tokens ?? 2048,
+        messages: body.messages,
+        ...(body.system ? { system: body.system } : {}),
+      }),
     });
-
-    const responseText = await resp.text();
-    return new Response(responseText, { status: resp.status, headers: corsHeaders });
-
-  } catch (e) {
-    return new Response(JSON.stringify({ error: { message: "Function error: " + e.message } }), {
-      status: 500, headers: corsHeaders
-    });
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ error: "Failed to reach Anthropic API", detail: err.message }),
+      {
+        status: 502,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      }
+    );
   }
+
+  // ── 6. Return Anthropic's response with CORS headers ─────────────────────
+  const responseBody = await anthropicResponse.text();
+  return new Response(responseBody, {
+    status: anthropicResponse.status,
+    headers: {
+      ...CORS_HEADERS,
+      "Content-Type": "application/json",
+    },
+  });
 }
