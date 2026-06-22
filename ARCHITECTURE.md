@@ -88,10 +88,10 @@ Recommended options:
 
 ---
 
-## 3. Planned refactor of `App.jsx`
+## 3. Refactor of `App.jsx` — DONE ✅
 
-`App.jsx` is currently one large file with clearly-labelled sections. The next
-structural task is to split it into:
+`App.jsx` has been split from one ~5,400-line file into the structure below.
+App.jsx now contains only the root component (state, login, navigation, routing):
 
 ```
 src/
