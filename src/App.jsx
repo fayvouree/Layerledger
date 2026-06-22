@@ -1,3 +1,40 @@
+/**
+ * App.jsx — LayerLedger (single-file React application)
+ * ============================================================================
+ * Bakery management + accounting app for Fayvouree Luxe Cakes Studio.
+ *
+ * WHY ONE FILE: this app was built rapidly as a single file. A refactor into
+ * separate per-component files (components/, lib/, etc.) is planned. Until then,
+ * the file is organised into clearly-marked sections (search for the banner
+ * comments like "//  DASHBOARD"). High-level map, in order of appearance:
+ *
+ *   1. SEED DATA & CONSTANTS  - default inventory, recipes, decorations,
+ *                               expense categories, user roles.
+ *   2. HELPERS                - fmt() money, uid(), today(), recipe costing,
+ *                               callClaude() AI proxy, image compression, CSV.
+ *   3. UI PRIMITIVES          - Btn, Inp, Sel, Card, Badge, Tabs, Modal, etc.
+ *   4. SCREENS (one fn each)  - Login, Dashboard, MasterList (Inventory/
+ *                               Recipes/Decorations/Packaging), Order
+ *                               Calculator, Quotes, Production List, Invoices,
+ *                               Receipt Scanner, Bank Import, Expenses,
+ *                               Purchases, Credit Purchases (Payables),
+ *                               Reports, P&L, Balance Sheet, Cash Flow,
+ *                               Settings, Onboarding.
+ *   5. ROOT (App)             - holds global state (inventory, productions,
+ *                               expenses, transactions, company, users),
+ *                               loads it from the browser on start, and routes
+ *                               between screens via the `view` state.
+ *
+ * DATA STORAGE: there is NO server database yet. All data lives in the
+ * browser's localStorage, accessed through the helpers in ./lib/data.js.
+ * This is why data does not sync between devices; a backend + real database
+ * (Cloudflare D1 or Supabase) is the planned "Stage 2".
+ *
+ * AI FEATURES: receipt scanning etc. call a separate Cloudflare Worker
+ * (see callClaude() below and /functions). The Worker holds the API key.
+ * ============================================================================
+ */
+
 import React, { useState, useRef, useEffect, useCallback } from "react"
 import { loadInventory, saveInventory, loadProductions, saveProduction, updateProdStatus,
   loadTransactions, saveTxns, loadExpenses, saveExpenses, loadSetting, saveSetting,
@@ -110,7 +147,7 @@ const FLAVOR_EXTRAS = {
   "orange":      [],
 }
 
-const EXP_CATS = ["Ingredients","Packaging","Delivery","Decorations","Equipment","Utilities","Marketing","Salaries","Rent","Miscellaneous"]
+const EXP_CATS = ["Ingredients / Supplies","Packaging","Delivery","Decorations","Equipment","Utilities","Marketing","Salary","Rent","Maintenance & Repairs","Gifts & Samples","Client Reimbursable (paid out)","Pass-through Payment","Loan Repayment","Bank charges","Miscellaneous"]
 const PAYMENT_TYPES = [{v:"full",l:"Full Price"},{v:"deposit",l:"Deposit Received"},{v:"discount",l:"Discounted"},{v:"gift",l:"Gift"},{v:"sample",l:"Sample/Tasting"}]
 const ROLES = { owner:"Owner (Full Access)", production:"Production (Baker)", customer_service:"Customer Service" }
 
@@ -142,14 +179,14 @@ async function callClaude(messages, system="") {
   if (!apiKey) {
     throw new Error("No API key set. Go to Settings → AI Features and enter your Anthropic API key.")
   }
-  const res = await fetch("/.netlify/functions/claude", {
+  const res = await fetch("https://layerledger-ai.fayvoureeluxecakes.workers.dev", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "x-ll-key": apiKey
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-6",
+      model: "claude-opus-4-5",
       max_tokens: 4000,
       system,
       messages
@@ -430,28 +467,27 @@ function Dashboard({productions,inventory,expenses,setView,user}){
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         <Card>
-          <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:8}}>Recent orders</div>
-          {user?.role==="owner"&&(()=>{
-            const unpaid=productions.filter(p=>p.paymentType==="deposit"||p.paymentType==="unpaid"||!p.paymentType)
-            const outstanding=unpaid.reduce((s,p)=>s+(p.salePrice||0)-(p.depositAmount||0),0)
-            return outstanding>0?<div style={{background:"#FDEBE9",border:"1px solid #F09595",borderRadius:7,padding:"7px 10px",fontSize:12.5,color:"#B03A2E",marginBottom:10,display:"flex",justifyContent:"space-between"}}>
-              <span>Outstanding balance</span><strong>{fmt(outstanding)}</strong>
-            </div>:null
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:8}}>Pending orders</div>
+          {(()=>{
+            const cutoff=new Date();cutoff.setDate(cutoff.getDate()-3)
+            const cutoffStr=cutoff.toISOString().slice(0,10)
+            const pending=productions.filter(p=>{
+              const s=(p.status||"").toLowerCase()
+              if(["delivered","completed","done","full","paid"].includes(s))return false
+              if(p.deliveryDate&&p.deliveryDate<cutoffStr)return false
+              return true
+            })
+            return pending.length===0
+              ?<div style={{fontSize:13,color:"var(--muted)"}}>No pending orders right now.</div>
+              :pending.slice(0,6).map(p=><div key={p.id} onClick={()=>setView("prodlist")} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid var(--border)",cursor:"pointer"}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:500,color:"var(--gold)"}}>{p.client||"Client"}</div>
+                  <div style={{fontSize:11.5,color:"var(--muted)"}}>Due {p.deliveryDate||"—"}</div>
+                </div>
+                <Badge color={{pending:"gold","in progress":"blue",ready:"green"}[(p.status||"pending").toLowerCase()]||"gray"}>{p.status||"pending"}</Badge>
+              </div>)
           })()}
-          {productions.length===0
-            ?<div style={{fontSize:13,color:"var(--muted)"}}>No orders yet — log your first production.</div>
-            :productions.slice(0,4).map(p=><div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:"1px solid var(--border)"}}>
-              <div>
-                <div style={{fontSize:13,fontWeight:500}}>{p.size} · {p.covering}</div>
-                <div style={{fontSize:11.5,color:"var(--muted)"}}>{p.client} · Due {p.deliveryDate}</div>
-              </div>
-              <div style={{textAlign:"right"}}>
-                <Badge color={{full:"green",gift:"purple",sample:"blue",discount:"gold",deposit:"blue"}[p.paymentType]||"gray"}>{p.paymentType}</Badge>
-                {user?.role==="owner"&&<div style={{fontSize:12,color:"var(--gold)",fontWeight:600,marginTop:2}}>{fmt(p.salePrice)}</div>}
-              </div>
-            </div>)
-          }
-          <div style={{marginTop:10}}><Btn small variant="outline" onClick={()=>setView("records")}>View all →</Btn></div>
+          <div style={{marginTop:10}}><Btn small variant="outline" onClick={()=>setView("prodlist")}>View production list →</Btn></div>
         </Card>
 
         {low.length>0&&<Card style={{background:"#FFF9EE",borderColor:"var(--gold)"}}>
@@ -706,7 +742,7 @@ function InventoryTab({inventory,setInventory,isOwner,showMsg,setView}){
 // ═══════════════════════════════════════════════════════════
 //  RECIPE CARD (standalone component — avoids hook-in-map bug)
 // ═══════════════════════════════════════════════════════════
-function RecipeCard({r, inventory, isOwner, onEdit, onDelete}){
+function RecipeCard({r, inventory, isOwner, onEdit, onDelete, onDuplicate}){
   const [open,setOpen]=useState(false)
   const [size,setSize]=useState("6")
   const [shape,setShape]=useState("round")
@@ -744,6 +780,7 @@ function RecipeCard({r, inventory, isOwner, onEdit, onDelete}){
       <div style={{display:"flex",gap:6,alignItems:"center"}}>
         {isOwner&&<div style={{display:"flex",gap:4}} onClick={e=>e.stopPropagation()}>
           <Btn small variant="ghost" onClick={onEdit}>✎ Edit</Btn>
+          {onDuplicate&&<Btn small variant="ghost" onClick={onDuplicate}>⧉ Duplicate</Btn>}
           <Btn small variant="danger" onClick={onDelete}>×</Btn>
         </div>}
         <span style={{color:"var(--muted)",fontSize:16,marginLeft:4}}>{open?"▴":"▾"}</span>
@@ -1132,6 +1169,13 @@ function MasterList({inventory,setInventory,recipes,setRecipes,user,setView}){
     if(!confirm("Delete this recipe?"))return
     const updated=recipes.filter(r=>r.id!==id); setRecipes(updated); saveRecipes(updated); showMsg("Recipe deleted")
   }
+  const duplicateRecipe = (r) => {
+    const copy={...r,id:uid(),name:r.name+" (copy)",ing:r.ing?r.ing.map(i=>({...i})):[]}
+    const updated=[...recipes,copy]
+    setRecipes(updated);saveRecipes(updated)
+    setRecipeModal(copy)
+    showMsg("✓ Recipe duplicated — rename it and adjust quantities","green")
+  }
   const addIngToRecipe = () => setRecipeModal(r=>({...r,ing:[...r.ing,{iid:"",qty:""}]}))
   const updateIng = (idx,field,val) => setRecipeModal(r=>({...r,ing:r.ing.map((ing,i)=>i===idx?{...ing,[field]:val}:ing)}))
   const removeIng = (idx) => setRecipeModal(r=>({...r,ing:r.ing.filter((_,i)=>i!==idx)}))
@@ -1155,7 +1199,7 @@ function MasterList({inventory,setInventory,recipes,setRecipes,user,setView}){
         <span style={{fontSize:13,color:"var(--muted)"}}>{recipes.length} recipes · click any card to expand</span>
         {isOwner&&<Btn small onClick={()=>openRecipe(null)}>+ New Recipe</Btn>}
       </div>
-      {recipes.map(r=><RecipeCard key={r.id} r={r} inventory={inventory} isOwner={isOwner} onEdit={()=>openRecipe(r)} onDelete={()=>deleteRecipe(r.id)}/>)}
+      {recipes.map(r=><RecipeCard key={r.id} r={r} inventory={inventory} isOwner={isOwner} onEdit={()=>openRecipe(r)} onDelete={()=>deleteRecipe(r.id)} onDuplicate={()=>duplicateRecipe(r)}/>)}
       {recipeModal&&<Modal title={recipeModal.name?"Edit Recipe":"New Recipe"} onClose={()=>setRecipeModal(null)}>
         <Inp label="Recipe Name * (e.g. Vanilla Cake, Buttercream)" value={recipeModal.name} onChange={v=>setRecipeModal(r=>({...r,name:v}))}/>
         <div style={{marginBottom:11}}>
@@ -1737,17 +1781,21 @@ confidence: "high", "medium", or "low". For unclear handwriting, make best guess
 // ═══════════════════════════════════════════════════════════
 function Expenses({expenses,setExpenses}){
   const [tab,setTab]=useState("all");const [adding,setAdding]=useState(false)
-  const [ne,setNe]=useState({date:today(),description:"",amount:"",category:"Ingredients",paymentMethod:"cash",notes:""})
+  const [editId,setEditId]=useState(null);const [editData,setEditData]=useState({})
+  const [ne,setNe]=useState({date:today(),description:"",amount:"",category:"Ingredients / Supplies",paymentMethod:"cash",notes:""})
+  const [selMonth,setSelMonth]=useState(new Date().toISOString().slice(0,7))
 
   const saveExp=()=>{
     if(!ne.description||!ne.amount)return
     const updated=[{...ne,id:uid(),amount:+ne.amount,source:"manual"},...expenses]
     setExpenses(updated);saveExpenses(updated)
-    setNe({date:today(),description:"",amount:"",category:"Ingredients",paymentMethod:"cash",notes:""});setAdding(false)
+    setNe({date:today(),description:"",amount:"",category:"Ingredients / Supplies",paymentMethod:"cash",notes:""});setAdding(false)
   }
+  const startEdit=(e)=>{setEditId(e.id);setEditData({...e})}
+  const saveEdit=()=>{const updated=expenses.map(e=>e.id===editId?{...editData,amount:+editData.amount}:e);setExpenses(updated);saveExpenses(updated);setEditId(null)}
 
   const m=new Date().toISOString().slice(0,7)
-  const filtered=tab==="all"?expenses:tab==="month"?expenses.filter(e=>e.date?.startsWith(m)):expenses.filter(e=>e.source===tab)
+  const filtered=tab==="all"?expenses:tab==="month"?expenses.filter(e=>e.date?.startsWith(selMonth)):expenses.filter(e=>e.source===tab)
   const total=filtered.reduce((s,e)=>s+(e.amount||0),0)
   const byCat={};filtered.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+(e.amount||0)})
 
@@ -1757,7 +1805,10 @@ function Expenses({expenses,setExpenses}){
       💡 <strong>How expenses flow to P&L:</strong> Ingredient costs from your recipes are already counted in COGS automatically. Use this page for overhead expenses — decorations bought, packaging, electricity, salary, delivery costs etc. These will appear in your P&L under Overhead Expenses.
     </div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
-      <Tabs tabs={[{v:"all",l:"All"},{v:"month",l:"This Month"},{v:"manual",l:"Cash Entries"},{v:"receipt",l:"From Receipts"},{v:"bank",l:"From Bank"}]} active={tab} onChange={setTab}/>
+      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+        <Tabs tabs={[{v:"all",l:"All"},{v:"month",l:"By Month"},{v:"manual",l:"Cash"},{v:"receipt",l:"Receipts"},{v:"bank",l:"Bank"}]} active={tab} onChange={setTab}/>
+        {tab==="month"&&<input type="month" value={selMonth} onChange={e=>setSelMonth(e.target.value)} style={{padding:"5px 8px",border:"1px solid var(--border)",borderRadius:7,fontSize:12,fontFamily:"inherit",background:"var(--panel)",color:"var(--text)"}}/>}
+      </div>
       <Btn onClick={()=>setAdding(!adding)}>+ Add Cash Expense</Btn>
     </div>
     {adding&&<Card style={{marginBottom:14,background:"#FFF9EE",borderColor:"var(--gold)"}}>
@@ -1778,17 +1829,25 @@ function Expenses({expenses,setExpenses}){
     </div>
     <Card style={{padding:0,overflowX:"auto"}}>
       <table style={{width:"100%",borderCollapse:"collapse"}}>
-        <TH cols={["Date","Description","Category","Method","Amount","Source",""]}/>
-        <tbody>{filtered.length===0?<tr><td colSpan={7} style={{padding:32,textAlign:"center",color:"var(--muted)"}}>No expenses found. Add one above or scan a receipt.</td></tr>:
-          filtered.map((e,i)=><TR2 key={e.id} i={i} row={[
-            <span style={{color:"var(--muted)",fontSize:12}}>{e.date}</span>,
-            <span style={{fontWeight:500}}>{e.description}</span>,
-            <Badge>{e.category}</Badge>,
-            <span style={{fontSize:12}}>{e.paymentMethod}</span>,
-            <span style={{color:"#B03A2E",fontWeight:600}}>{fmt(e.amount)}</span>,
-            <Badge color={e.source==="receipt"?"blue":e.source==="bank"?"green":"gray"}>{e.source||"manual"}</Badge>,
-            <Btn small variant="ghost" onClick={()=>{const u=expenses.filter(x=>x.id!==e.id);setExpenses(u);saveExpenses(u)}}>×</Btn>,
-          ]}/>)}
+        <TH cols={["Date","Description","Category","Amount","Source",""]}/>
+        <tbody>{filtered.length===0?<tr><td colSpan={6} style={{padding:32,textAlign:"center",color:"var(--muted)"}}>No expenses found.</td></tr>:
+          filtered.map((e,i)=>editId===e.id
+            ?<tr key={e.id} style={{background:"#FEF9EE"}}>
+              <td style={{padding:"6px 8px",borderBottom:"1px solid var(--border)"}}><input type="date" value={editData.date||""} onChange={ev=>setEditData(p=>({...p,date:ev.target.value}))} style={{padding:"4px 6px",border:"1px solid var(--border)",borderRadius:5,fontSize:12,fontFamily:"inherit",width:130}}/></td>
+              <td style={{padding:"6px 8px",borderBottom:"1px solid var(--border)"}}><input value={editData.description||""} onChange={ev=>setEditData(p=>({...p,description:ev.target.value}))} style={{padding:"4px 6px",border:"1px solid var(--border)",borderRadius:5,fontSize:12,fontFamily:"inherit",width:"100%",minWidth:140}}/></td>
+              <td style={{padding:"6px 8px",borderBottom:"1px solid var(--border)"}}><select value={editData.category||""} onChange={ev=>setEditData(p=>({...p,category:ev.target.value}))} style={{padding:"4px 6px",border:"1px solid var(--border)",borderRadius:5,fontSize:11,fontFamily:"inherit"}}>{EXP_CATS.map(c=><option key={c}>{c}</option>)}</select></td>
+              <td style={{padding:"6px 8px",borderBottom:"1px solid var(--border)"}}><input type="number" value={editData.amount||""} onChange={ev=>setEditData(p=>({...p,amount:ev.target.value}))} style={{padding:"4px 6px",border:"1px solid var(--border)",borderRadius:5,fontSize:12,fontFamily:"inherit",width:90}}/></td>
+              <td style={{padding:"6px 8px",borderBottom:"1px solid var(--border)"}}><Badge color="gold">editing</Badge></td>
+              <td style={{padding:"6px 8px",borderBottom:"1px solid var(--border)"}}><div style={{display:"flex",gap:4}}><Btn small variant="success" onClick={saveEdit}>✓</Btn><Btn small variant="ghost" onClick={()=>setEditId(null)}>✕</Btn></div></td>
+            </tr>
+            :<TR2 key={e.id} i={i} row={[
+              <span style={{color:"var(--muted)",fontSize:12}}>{e.date}</span>,
+              <span style={{fontWeight:500}}>{e.description}</span>,
+              <Badge>{e.category}</Badge>,
+              <span style={{color:"#B03A2E",fontWeight:600}}>{fmt(e.amount)}</span>,
+              <Badge color={e.source==="receipt"?"blue":e.source==="bank"?"green":"gray"}>{e.source||"manual"}</Badge>,
+              <div style={{display:"flex",gap:4}}><Btn small variant="ghost" onClick={()=>startEdit(e)}>Edit</Btn><Btn small variant="ghost" onClick={()=>{const u=expenses.filter(x=>x.id!==e.id);setExpenses(u);saveExpenses(u)}}>×</Btn></div>,
+            ]}/>)}
         </tbody>
       </table>
     </Card>
@@ -1899,11 +1958,27 @@ function BankImport({transactions,setTransactions,productions,expenses,setExpens
   const match=(txId,prodId)=>setParsed(p=>p.map(t=>t.id===txId?{...t,matchedProdId:prodId}:t))
 
   const saveAll=async()=>{
-    const updated=[...parsed,...transactions];setTransactions(updated);await saveTxns(parsed)
+    // Split incoming payments that match an invoice with a delivery charge
+    let invs=[]
+    try{invs=JSON.parse(localStorage.getItem("ll_quote_invoices")||"[]")}catch(e){}
+    const expandedCredits=[]
+    parsed.filter(t=>t.type==="credit").forEach(t=>{
+      const match=invs.find(iv=>iv.deliveryCharge>0&&Math.abs((iv.amount||0)-t.amount)<1)
+      if(match){
+        const cakeAmt=match.cakeAmount||(t.amount-match.deliveryCharge)
+        expandedCredits.push({...t,id:uid(),amount:cakeAmt,category:"sales"})
+        expandedCredits.push({...t,id:uid(),amount:match.deliveryCharge,category:"pass-through",description:(t.description||"")+" (delivery)"})
+      }else{
+        expandedCredits.push(t)
+      }
+    })
+    const allDebits=parsed.filter(t=>t.type==="debit")
+    const finalParsed=[...expandedCredits,...allDebits]
+    const updated=[...finalParsed,...transactions];setTransactions(updated);await saveTxns(finalParsed)
     // Auto-add debits to expenses
     const debits=parsed.filter(t=>t.type==="debit"&&t.category!=="bank_charges").map(t=>({
       id:uid(),date:t.date,description:t.description,amount:t.amount,
-      category:{ingredients:"Ingredients",delivery:"Delivery",packaging:"Packaging",salary:"Salaries",office:"Utilities",utilities:"Utilities"}[t.category]||"Miscellaneous",
+      category:{ingredients:"Ingredients / Supplies",delivery:"Delivery",packaging:"Packaging",salary:"Salary",office:"Utilities",utilities:"Utilities"}[t.category]||"Miscellaneous",
       paymentMethod:"transfer",source:"bank"
     }))
     if(debits.length>0){const updExp=[...debits,...expenses];setExpenses(updExp);saveExpenses(updExp)}
@@ -2339,7 +2414,9 @@ function loadQuoteRevenue(){
     const qs=JSON.parse(localStorage.getItem("ll_quotes")||"[]")
     return qs
       .filter(q=>q.confirmedAt)
-      .map(q=>({
+      .map(q=>{
+        const isGS=q.orderPurpose==="gift"||q.orderPurpose==="sample"
+        return {
         id:q.id,
         quoteId:q.id,
         fromQuote:true,
@@ -2348,10 +2425,11 @@ function loadQuoteRevenue(){
         deliveryDate:q.deliveryDate||q.date||"",
         orderDate:q.date||"",
         confirmedAt:q.confirmedAt,
-        salePrice:+(q.salePrice||q.quotePrice||0),
+        salePrice:isGS?0:+(q.salePrice||q.quotePrice||0),
         cost:+(q.totalCost||0),
         deliveryCost:0,
         productType:q.productType||"Cake",
+        orderPurpose:q.orderPurpose||"sale",
         size:q.tiers?.map(t=>t.size+'" '+t.shape).join(" + ")||"",
         covering:q.tiers?.[0]?.coverings?.[0]?.type||"",
         flavors:q.flavourSummary||"",
@@ -2360,10 +2438,10 @@ function loadQuoteRevenue(){
         loaves:q.loaves||[],
         tartQty:q.tartQty||0,
         notes:q.notes||"",
-        paymentType:"full",
+        paymentType:isGS?q.orderPurpose:"full",
         status:"approved",
         margin:q.margin||0,
-      }))
+      }})
   }catch{return[]}
 }
 
@@ -2380,13 +2458,16 @@ function PandL({productions,expenses,company}){
   // Use confirmed quotes as primary revenue source
   const allRevenue=mergeRevenueSources(productions)
 
+  const last12=Array.from({length:12},(_,i)=>{const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);return d.toISOString().slice(0,7)})
   const allMonths=[...new Set([
+    ...last12,
     ...allRevenue.map(p=>p.deliveryDate?.slice(0,7)),
     ...expenses.map(e=>e.date?.slice(0,7)),
   ].filter(Boolean))].sort().reverse()
   const cur=new Date().toISOString().slice(0,7)
   // Default to current month — always show current month even if no data yet
   const [sel,setSel]=useState(cur)
+  const [drill,setDrill]=useState(null)
   const monthLabel=new Date(sel+"-02").toLocaleDateString("en-NG",{month:"long",year:"numeric"})
   const gold=company?.primaryColor||"var(--gold)"
 
@@ -2394,8 +2475,9 @@ function PandL({productions,expenses,company}){
   const mRevenue=allRevenue.filter(p=>p.deliveryDate?.startsWith(sel))
   const paid=mRevenue.filter(p=>p.paymentType!=="gift"&&p.paymentType!=="sample")
   const revenue=paid.reduce((s,p)=>s+(p.salePrice||0),0)
-  const cogsProd=mRevenue.reduce((s,p)=>s+(p.cost||0),0)
-  const delivery=mRevenue.reduce((s,p)=>s+(p.deliveryCost||0),0)
+  // COGS only counts SOLD items — gift/sample costs are recorded separately as a Gifts & Samples expense
+  const cogsProd=paid.reduce((s,p)=>s+(p.cost||0),0)
+  const delivery=paid.reduce((s,p)=>s+(p.deliveryCost||0),0)
   const cogs=cogsProd+delivery
   const grossProfit=revenue-cogs
   const grossMargin=revenue>0?Math.round((grossProfit/revenue)*100):0
@@ -2484,8 +2566,38 @@ function PandL({productions,expenses,company}){
     w.document.close()
   }
 
+  const DrillDown=({title,rows,onClose})=>(<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onClose}>
+    <div style={{background:"var(--panel)",borderRadius:"16px 16px 0 0",width:"100%",maxWidth:600,maxHeight:"75vh",overflow:"auto",padding:20}} onClick={e=>e.stopPropagation()}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:16,fontWeight:700}}>{title}</div>
+        <button onClick={onClose} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:"var(--muted)",lineHeight:1}}>×</button>
+      </div>
+      {rows.length===0?<div style={{fontSize:13,color:"var(--muted)",textAlign:"center",padding:20}}>No records found for this period.</div>:
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+        <thead><tr>{["Date","Description","Amount"].map(h=><th key={h} style={{textAlign:h==="Amount"?"right":"left",padding:"6px 8px",borderBottom:"1px solid var(--border)",fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:.7,fontWeight:600}}>{h}</th>)}</tr></thead>
+        <tbody>{rows.map((r,i)=><tr key={i} style={{borderBottom:"1px solid var(--border)",background:i%2===0?"transparent":"var(--bg)"}}>
+          <td style={{padding:"8px",fontSize:12,color:"var(--muted)",whiteSpace:"nowrap"}}>{r.date}</td>
+          <td style={{padding:"8px"}}>{r.label}</td>
+          <td style={{padding:"8px",textAlign:"right",fontWeight:600,color:r.amount<0?"#B03A2E":"var(--text)"}}>{fmt(Math.abs(r.amount))}</td>
+        </tr>)}
+        <tr style={{borderTop:"2px solid var(--border)"}}><td colSpan={2} style={{padding:"10px 8px",fontWeight:700}}>Total</td><td style={{padding:"10px 8px",textAlign:"right",fontWeight:700,color:"var(--gold)"}}>{fmt(rows.reduce((s,r)=>s+Math.abs(r.amount),0))}</td></tr>
+        </tbody>
+      </table>}
+    </div>
+  </div>)
+
+  const showRevenue=()=>setDrill({title:"Revenue — "+monthLabel,rows:paid.map(p=>({date:p.deliveryDate||p.orderDate||"",label:(p.client||"Client")+" — "+(p.productType||"Cake")+(p.size?" ("+p.size+")":""),amount:p.salePrice||0}))})
+  const showCOGS=()=>setDrill({title:"Cost of Goods Sold — "+monthLabel,rows:paid.map(p=>({date:p.deliveryDate||p.orderDate||"",label:(p.client||"Client")+" — ingredient cost",amount:p.cost||0}))})
+  const showOverhead=(cat)=>{
+    const rows=cat
+      ?mExp.filter(e=>e.category===cat).map(e=>({date:e.date||"",label:e.description||e.category,amount:e.amount||0}))
+      :mExp.map(e=>({date:e.date||"",label:e.description||e.category,amount:e.amount||0}))
+    setDrill({title:cat?cat+" — "+monthLabel:"All Overhead Expenses — "+monthLabel,rows})
+  }
+
   return <div>
-    <SHead title="P&L Statement" sub="Profit & Loss — revenue, costs and net profit for the selected month"/>
+    {drill&&<DrillDown title={drill.title} rows={drill.rows} onClose={()=>setDrill(null)}/>}
+    <SHead title="P&L Statement" sub="Profit & Loss — tap any figure to see the detail behind it"/>
     <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18,flexWrap:"wrap"}}>
       <select value={sel} onChange={e=>setSel(e.target.value)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid var(--border)",background:"var(--panel)",fontSize:13,color:"var(--text)"}}>
         {([...new Set([cur,...allMonths])]).map(m=><option key={m} value={m}>{new Date(m+"-02").toLocaleDateString("en-NG",{month:"long",year:"numeric"})}</option>)}
@@ -2508,15 +2620,19 @@ function PandL({productions,expenses,company}){
     <Card style={{maxWidth:560}}>
       <PLSection gold={gold} title="Revenue">
         {Object.entries(byType).length>0
-          ?Object.entries(byType).map(([type,data])=><PLRow key={type} label={`${type} (${data.qty} order${data.qty!==1?"s":""})`} value={fmt(data.rev)} indent/>)
+          ?Object.entries(byType).map(([type,data])=><div key={type} onClick={showRevenue} style={{cursor:"pointer"}}><PLRow label={`${type} (${data.qty} order${data.qty!==1?"s":""})`} value={fmt(data.rev)} indent/></div>)
           :<PLRow label="No confirmed orders this month" value={fmt(0)} indent/>}
-        <PLRow label={`Total Revenue (${paid.length} confirmed order${paid.length!==1?"s":""})`} value={fmt(revenue)} bold/>
+        <div onClick={showRevenue} style={{cursor:"pointer"}}><PLRow label={`Total Revenue (${paid.length} confirmed order${paid.length!==1?"s":""})`} value={fmt(revenue)} bold/></div>
+        <div style={{fontSize:11,color:"var(--muted)",marginTop:2,marginLeft:2}}>Tap any row to see detail</div>
       </PLSection>
 
       <PLSection gold={gold} title="Cost of Goods Sold (COGS)">
-        <PLRow label="Ingredient costs" value={fmt(cogsProd)} indent/>
-        <PLRow label="Delivery costs" value={fmt(delivery)} indent/>
-        <PLRow label="Total COGS" value={fmt(cogs)} bold/>
+        <div onClick={showCOGS} style={{cursor:"pointer"}}>
+          <PLRow label="Ingredient costs" value={fmt(cogsProd)} indent/>
+          <PLRow label="Delivery costs" value={fmt(delivery)} indent/>
+          <PLRow label="Total COGS" value={fmt(cogs)} bold/>
+        </div>
+        <div style={{fontSize:11,color:"var(--muted)",marginTop:2,marginLeft:2}}>Tap to see order breakdown</div>
       </PLSection>
 
       <PLRow label={`Gross Profit (${grossMargin}% margin)`} value={fmt(grossProfit)} bold color={grossProfit>=0?"#357A52":"#B03A2E"}/>
@@ -2524,12 +2640,13 @@ function PandL({productions,expenses,company}){
       <div style={{height:16}}/>
 
       <PLSection gold={gold} title="Overhead Expenses">
-        {Object.entries(overheadBycat).map(([cat,amt])=><PLRow key={cat} label={cat} value={fmt(amt)} indent/>)}
+        {Object.entries(overheadBycat).map(([cat,amt])=><div key={cat} onClick={()=>showOverhead(cat)} style={{cursor:"pointer"}}><PLRow label={cat} value={fmt(amt)} indent/></div>)}
         {Object.keys(overheadBycat).length===0&&<PLRow label="No overhead expenses logged" value="₦0" indent/>}
-        <PLRow label="Total Overheads" value={fmt(overhead)} bold/>
+        <div onClick={()=>showOverhead(null)} style={{cursor:"pointer"}}><PLRow label="Total Overheads" value={fmt(overhead)} bold/></div>
+        <div style={{fontSize:11,color:"var(--muted)",marginTop:2,marginLeft:2}}>Tap a category row to see detail</div>
       </PLSection>
 
-      <div style={{padding:"14px 16px",background:netProfit>=0?"#E8F5EE":"#FDEBE9",border:`1px solid ${netProfit>=0?"#C2E0CF":"#F09595"}`,borderRadius:10,display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}}>
+      <div style={{padding:"14px 16px",background:netProfit>=0?"#E8F5EE":"#FDEBE9",border:(netProfit>=0?"1px solid #C2E0CF":"1px solid #F09595"),borderRadius:10,display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}}>
         <div>
           <div style={{fontSize:11,color:netProfit>=0?"#085041":"#501313",textTransform:"uppercase",letterSpacing:.8,marginBottom:3}}>Net Profit / (Loss)</div>
           <div style={{fontSize:11,color:netProfit>=0?"#0F6E56":"#791F1F"}}>{monthLabel}</div>
@@ -2643,8 +2760,7 @@ function ProductionList({productions,company,setView}){
       ?<Card style={{textAlign:"center",padding:40}}>
           <div style={{fontSize:24,marginBottom:10}}>🎂</div>
           <div style={{fontSize:15,fontWeight:500,color:"var(--text)",marginBottom:6}}>No orders this week</div>
-          <div style={{fontSize:13,color:"var(--muted)",marginBottom:16}}>Nothing due between {fmt2(ws)} and {fmt2(we)}.</div>
-          <Btn onClick={()=>setView("calculator")}>Go to Order Calculator</Btn>
+          <div style={{fontSize:13,color:"var(--muted)"}}>Nothing due between {fmt2(ws)} and {fmt2(we)}.</div>
         </Card>
       :<div style={{display:"flex",flexDirection:"column",gap:10}}>
         {weekProds.map((p,i)=>{
@@ -3260,9 +3376,43 @@ function Settings({company,setCompany,settings,setSettings,users,setUsers,invent
   const deleteUser=(id)=>{if(id==="owner")return;const u=users.filter(x=>x.id!==id);setUsers(u);saveUsers(u)}
   const updatePin=(id,pin)=>{const u=users.map(x=>x.id===id?{...x,pin}:x);setUsers(u);saveUsers(u)}
 
+  // Backup / restore
+  const ALL_KEYS=["ll_inv","ll_prods","ll_txns","ll_exp","ll_co","ll_quotes","ll_recipes","ll_purchases","ll_clients","ll_users","ll_coverings","ll_decorations","ll_packaging","ll_multipliers","ll_opening_stock","ll_quote_invoices","ll_accessories","ll_payables","ll_ap_payments","ll_opening_balance","ll_quote_revenue","accessoryPct","profitPct"]
+  const exportData=()=>{
+    const data={}
+    ALL_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)data[k]=v})
+    data._exportedAt=new Date().toISOString();data._version="LayerLedger-v56"
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"})
+    const url=URL.createObjectURL(blob)
+    const a=document.createElement("a")
+    a.href=url;a.download="layerledger-backup-"+new Date().toISOString().slice(0,10)+".json"
+    document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url)
+  }
+  const importRef=useRef()
+  const [importMsg,setImportMsg]=useState("")
+  const handleImport=(e)=>{
+    const f=e.target.files[0]
+    if(!f){setImportMsg("⚠ No file selected.");return}
+    setImportMsg("Reading file...")
+    const r=new FileReader()
+    r.onerror=()=>{setImportMsg("⚠ Could not read the file. Try downloading it again.")}
+    r.onload=ev=>{
+      try{
+        let text=ev.target.result;if(typeof text!=="string")text=String(text);text=text.trim()
+        const data=JSON.parse(text)
+        if(!data._version&&!data.ll_inv&&!data.ll_quotes&&!data.ll_prods){setImportMsg("⚠ This doesn't look like a LayerLedger backup file.");return}
+        let count=0
+        Object.keys(data).forEach(k=>{if(k.startsWith("_"))return;localStorage.setItem(k,data[k]);count++})
+        setImportMsg("✓ Imported "+count+" data sets. Reloading app...")
+        setTimeout(()=>window.location.reload(),1500)
+      }catch(err){setImportMsg("⚠ Could not read file: "+err.message+". Make sure it's the exported backup file (.json), not the app zip.")}
+    }
+    r.readAsText(f)
+  }
+
   return <div>
     <SHead title="Settings" sub="Company profile, pricing, users, and access control."/>
-    <Tabs tabs={[{v:"company",l:"Company"},{v:"pricing",l:"Pricing & Margins"},{v:"stock",l:"Opening Stock"},{v:"notifications",l:"Notifications"},{v:"users",l:"Users & Access"}]} active={tab} onChange={setTab}/>
+    <Tabs tabs={[{v:"company",l:"Company"},{v:"pricing",l:"Pricing & Margins"},{v:"stock",l:"Opening Stock"},{v:"notifications",l:"Notifications"},{v:"users",l:"Users & Access"},{v:"backup",l:"Backup & Data"}]} active={tab} onChange={setTab}/>
 
     {tab==="company"&&<div style={{maxWidth:540}}>
       <Card>
@@ -3372,6 +3522,32 @@ function Settings({company,setCompany,settings,setSettings,users,setUsers,invent
         </table>
       </div>
     </div>}
+
+    {tab==="backup"&&<div style={{maxWidth:540}}>
+      <Card style={{marginBottom:14}}>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:6}}>Backup Your Data</div>
+        <div style={{fontSize:12.5,color:"var(--muted)",lineHeight:1.7,marginBottom:14}}>
+          Your data is stored on this device only. Export a backup file to keep it safe, move it to another device (your phone, a business centre computer), or hand it to your accountant. Do this regularly — it's your safety net.
+        </div>
+        <Btn onClick={exportData}>📥 Export All Data</Btn>
+        <div style={{fontSize:11.5,color:"var(--muted)",marginTop:8}}>Downloads a single file containing inventory, recipes, orders, quotes, transactions, purchases, payables, and all settings.</div>
+      </Card>
+      <Card>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:600,marginBottom:6}}>Restore From Backup</div>
+        <div style={{fontSize:12.5,color:"var(--muted)",lineHeight:1.7,marginBottom:14}}>
+          Import a backup file to load all that data into this browser. Use this to set up the app on a new device, or to give your accountant a working copy.
+        </div>
+        <div style={{background:"#FDEBE9",border:"1px solid #F0A89E",borderRadius:8,padding:"10px 12px",fontSize:12,color:"#B03A2E",lineHeight:1.6,marginBottom:14}}>
+          ⚠ Importing replaces the data currently in this browser with the data from the file. If this browser already has data you want to keep, export it first.
+        </div>
+        <input ref={importRef} type="file" onChange={handleImport} style={{display:"none"}}/>
+        <Btn variant="ghost" onClick={()=>importRef.current?.click()}>📤 Import Data From File</Btn>
+        {importMsg&&<div style={{marginTop:10,fontSize:13,fontWeight:500,color:importMsg.startsWith("✓")?"#357A52":"#B03A2E"}}>{importMsg}</div>}
+      </Card>
+      <div style={{fontSize:11.5,color:"var(--muted)",marginTop:12,lineHeight:1.6,fontStyle:"italic"}}>
+        Note: this is a manual backup for now. A cloud version with automatic sync across all your devices is planned as the next major step.
+      </div>
+    </div>}
   </div>
 }
 
@@ -3476,6 +3652,9 @@ function QuotesPage({inventory,setInventory,recipes,setView,productions,setProdu
       orderDate:q.date,deliveryDate:q.deliveryDate||"",
       cost:q.totalCost||0,deliveryCost:0,
       salePrice:q.salePrice||q.quotePrice||0,
+      deliveryCharge:q.deliveryCharge||0,
+      vatAmount:q.vatAmount||0,
+      grandTotal:q.grandTotal||0,
       status:"pending",
       productType:q.productType||"Cake",
       size:q.tiers?.map(t=>t.size+'" '+t.shape).join(" + ")||"",
@@ -3493,16 +3672,40 @@ function QuotesPage({inventory,setInventory,recipes,setView,productions,setProdu
       decorations:q.decQty?Object.keys(q.decQty).join(", "):"",
       layers:q.tiers?.length||1,
       accessoryPct:10,profitPct:q.margin||40,
-      paymentType:"full",discountPct:0,notes:q.notes||"",
+      paymentType:(q.orderPurpose==="gift"||q.orderPurpose==="sample")?q.orderPurpose:"full",
+      orderPurpose:q.orderPurpose||"sale",
+      discountPct:0,notes:q.notes||"",
       recipeId:""
     }
     setProductions(prev=>[prod,...prev])
     saveProduction(prod)
 
+    // 3b. Gift/sample — log the ingredient cost as a write-off expense (inventory already deducted)
+    if(q.orderPurpose==="gift"||q.orderPurpose==="sample"){
+      const writeOffCost=q.totalCost||0
+      if(writeOffCost>0){
+        const exp={
+          id:uid(),
+          date:q.deliveryDate||new Date().toISOString().slice(0,10),
+          description:(q.orderPurpose==="gift"?"Gift: ":"Sample/Tasting: ")+(q.cakeSummary||"cake"),
+          amount:writeOffCost,
+          category:"Gifts & Samples",
+          paymentMethod:"none",
+          source:"writeoff",
+          notes:"Ingredients consumed for "+q.orderPurpose+" — no revenue"
+        }
+        const updExp=[exp,...loadExpenses()]
+        saveExpenses(updExp)
+      }
+    }
+
     // 4. Update quote status to approved and mark as confirmed
     const updated=quotes.map(x=>x.id===q.id?{...x,status:"approved",confirmedAt:new Date().toISOString()}:x)
     setQuotes(updated);saveQuotes(updated)
-    alert("✓ Order confirmed for "+q.clientName+"! Ingredients deducted and order added to Production List.")
+    const msg=(q.orderPurpose==="gift"||q.orderPurpose==="sample")
+      ?"✓ "+(q.orderPurpose==="gift"?"Gift":"Sample")+" logged! Ingredients deducted from inventory and cost recorded as a "+q.orderPurpose+" expense (no revenue)."
+      :"✓ Order confirmed for "+q.clientName+"! Ingredients deducted and order added to Production List."
+    alert(msg)
   }
 
   const filtered=filter==="all"?quotes:quotes.filter(q=>q.status===filter)
@@ -3606,11 +3809,12 @@ function QuotesPage({inventory,setInventory,recipes,setView,productions,setProdu
                     +"@media print{.no-print{display:none}}"
                     +tmplStyles
                     +"</style></head><body>"
+                    +"<div id='invoice-body' style='background:#fff;padding:8px'>"
                     +"<div style='display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px'>"
                     +"<div><h1>"+(co.name||"Fayvouree Cakes")+"</h1>"
                     +"<div class='sub'>"+(co.address||"")+(co.phone?" · "+co.phone:"")+(co.email?" · "+co.email:"")+"</div></div>"
                     +"<div style='text-align:right'><div style='font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px'>Invoice</div>"
-                    +"<div style='font-size:20px;font-weight:700;color:var(--gold)'>"+invoiceNum+"</div>"
+                    +"<div style='font-size:20px;font-weight:700;color:"+gold+"'>"+invoiceNum+"</div>"
                     +"<div style='font-size:12px;color:#888'>Date: "+q.date+"</div></div></div>"
                     +"<div style='margin-bottom:18px;padding:12px 14px;background:#F5F0E4;border-radius:8px'>"
                     +"<div style='font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px'>Bill to</div>"
@@ -3619,7 +3823,7 @@ function QuotesPage({inventory,setInventory,recipes,setView,productions,setProdu
                     +(q.deliveryDate?"<div style='font-size:13px;color:#555;margin-top:2px'>Delivery / Collection: "+q.deliveryDate+"</div>":"")
                     +"</div>"
                     +"<div style='margin-bottom:18px'>"
-                    +"<div style='font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px;border-bottom:2px solid var(--gold);padding-bottom:4px;margin-bottom:10px'>Order details</div>"
+                    +"<div style='font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px;border-bottom:2px solid "+gold+";padding-bottom:4px;margin-bottom:10px'>Order details</div>"
                     // Cake/Cupcake tiers
                     +((!q.productType||q.productType==="Cake"||q.productType==="Cupcakes")
                       ?trs.map((t,i)=>"<div class='tier'><strong>Tier "+(i+1)+" — "+t.size+"\" "+(t.shape||"")+"</strong>"
@@ -3655,9 +3859,14 @@ function QuotesPage({inventory,setInventory,recipes,setView,productions,setProdu
                     +(q.topper?.enabled?"<div class='row'><span>Custom topper</span><span>"+( q.topper.description||"Yes")+"</span></div>":"")
                     +(q.notes?"<div class='row'><span>Special requests</span><span>"+q.notes+"</span></div>":"")
                     +"</div>"
+                    +((q.deliveryCharge>0||q.vatAmount>0)?"<div style='margin:16px 0;padding:14px 16px;background:#FAF7F0;border-radius:10px'>"
+                      +"<div class='row'><span>Cake price</span><span>&#8358;"+((q.salePrice||q.quotePrice||0).toLocaleString())+"</span></div>"
+                      +(q.deliveryCharge>0?"<div class='row'><span>Delivery</span><span>&#8358;"+(q.deliveryCharge.toLocaleString())+"</span></div>":"")
+                      +(q.vatAmount>0?"<div class='row'><span>VAT ("+(q.vatRate||7.5)+"%)</span><span>&#8358;"+(q.vatAmount.toLocaleString())+"</span></div>":"")
+                      +"</div>":"")
                     +"<div class='price-box'>"
                     +"<div style='font-size:12px;color:#888;margin-bottom:4px;text-transform:uppercase;letter-spacing:1px'>Total amount</div>"
-                    +"<div style='font-size:32px;font-weight:700;color:"+gold+"'>&#8358;"+((q.salePrice||q.quotePrice||0).toLocaleString())+"</div>"
+                    +"<div style='font-size:32px;font-weight:700;color:"+gold+"'>&#8358;"+((q.grandTotal||((q.salePrice||q.quotePrice||0)+(q.deliveryCharge||0)+(q.vatAmount||0))).toLocaleString())+"</div>"
                     +"</div>"
                     +(co.bankName?"<div class='bank'><div style='font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px;font-weight:600;margin-bottom:8px'>Payment details</div>"
                       +"<div class='row'><span>Bank</span><span><strong>"+co.bankName+"</strong></span></div>"
@@ -3669,29 +3878,33 @@ function QuotesPage({inventory,setInventory,recipes,setView,productions,setProdu
                     +"&bull; Cake design may slightly differ from inspiration photos.<br>"
                     +(co.termsAndConditions?"&bull; "+co.termsAndConditions+"<br>":"")
                     +"</div>"
-                    +"<div class='no-print' style='margin-top:24px;display:flex;gap:10px;justify-content:center'>"
-                    +"<button onclick='window.print()' style='padding:10px 20px;background:var(--gold);color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer'>📥 Save / Print</button>"
                     +"</div>"
+                    +"<div class='no-print' style='margin-top:24px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap'>"
+                    +"<button id='shareBtn' style='padding:11px 22px;background:#25D366;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600'>\ud83d\udce4 Share Invoice</button>"
+                    +"<button onclick='window.print()' style='padding:11px 22px;background:"+gold+";color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:600'>\ud83d\udce5 Save as PDF</button>"
+                    +"</div>"
+                    +"<div class='no-print' id='shareHelp' style='margin-top:12px;font-size:12px;color:#666;text-align:center;line-height:1.7;max-width:440px;margin-left:auto;margin-right:auto'>Tap <b>Share Invoice</b> to send the PDF to WhatsApp, email or anywhere.</div>"
                     +"<div style='margin-top:16px;font-size:11px;color:#aaa;text-align:center'>"+(co.name||"Fayvouree Cakes")+" &nbsp;·&nbsp; Generated by LayerLedger</div>"
-                    +"<script>setTimeout(()=>window.print(),500)<\/script>"
+                    +"<scr"+"ipt src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'></scr"+"ipt>"
+                    +"<scr"+"ipt src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'></scr"+"ipt>"
+                    +"<scr"+"ipt>"
+                    +"var INV_NUM='"+invoiceNum+"';"
+                    +"var CLIENT='"+(q.clientName||'').replace(/'/g,'')+"';"
+                    +"var PHONE='"+((q.clientPhone||'').replace(/[^0-9]/g,'').replace(/^0/,'234'))+"';"
+                    +"var AMT='"+((q.grandTotal||((q.salePrice||q.quotePrice||0)+(q.deliveryCharge||0)+(q.vatAmount||0))).toLocaleString())+"';"
+                    +"var BIZ='"+(co.name||'Fayvouree Cakes').replace(/'/g,'')+"';"
+                    +"async function makePDF(){var el=document.getElementById('invoice-body');var canvas=await html2canvas(el,{scale:2,backgroundColor:'#ffffff',useCORS:true});var img=canvas.toDataURL('image/jpeg',0.92);var pdf=new jspdf.jsPDF('p','mm','a4');var pw=pdf.internal.pageSize.getWidth();var ph=pdf.internal.pageSize.getHeight();var imgH=canvas.height*pw/canvas.width;pdf.addImage(img,'JPEG',0,0,pw,imgH);var left=imgH-ph;while(left>0){pdf.addPage();pdf.addImage(img,'JPEG',0,left-imgH,pw,imgH);left-=ph;}return pdf;}"
+                    +"document.getElementById('shareBtn').onclick=async function(){var btn=this;btn.textContent='Preparing...';btn.disabled=true;try{var pdf=await makePDF();var blob=pdf.output('blob');var file=new File([blob],INV_NUM+'.pdf',{type:'application/pdf'});var msg='Hello '+CLIENT+'! Your invoice '+INV_NUM+' for \u20a6'+AMT+' is attached. Thank you for choosing '+BIZ+'!';if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:INV_NUM,text:msg});btn.textContent='\u2713 Shared';}else{pdf.save(INV_NUM+'.pdf');var wa=PHONE?('https://wa.me/'+PHONE+'?text='+encodeURIComponent(msg)):('https://wa.me/?text='+encodeURIComponent(msg));window.open(wa,'_blank');document.getElementById('shareHelp').innerHTML='PDF downloaded and WhatsApp opened. Attach the downloaded PDF in the chat.';btn.textContent='\ud83d\udce4 Share Invoice';btn.disabled=false;}}catch(e){if(e.name!=='AbortError'){document.getElementById('shareHelp').innerHTML='Could not auto-share. Tap Save as PDF then attach it in WhatsApp.';}btn.textContent='\ud83d\udce4 Share Invoice';btn.disabled=false;}};"
+                    +"setTimeout(function(){window.print()},700);"
+                    +"</scr"+"ipt>"
                     +"</body></html>"
                   const w=window.open("","_blank")
                   w.document.write(html)
                   w.document.close()
                   // Auto-save invoice to Invoices page
-                  const savedInv={id:invoiceNum,quoteId:q.id,clientName:q.clientName,clientPhone:q.clientPhone||"",date:q.date,deliveryDate:q.deliveryDate||"",amount:q.salePrice||q.quotePrice||0,productType:q.productType||"Cake",cakeSummary:q.cakeSummary||"",notes:q.notes||"",status:"unpaid",bankName:co.bankName||"",bankAccount:co.bankAccount||"",bankAccountName:co.bankAccountName||"",businessName:co.name||"Fayvouree Cakes"}
+                  const savedInv={id:invoiceNum,quoteId:q.id,clientName:q.clientName,clientPhone:q.clientPhone||"",date:q.date,deliveryDate:q.deliveryDate||"",amount:q.grandTotal||((q.salePrice||q.quotePrice||0)+(q.deliveryCharge||0)+(q.vatAmount||0)),cakeAmount:q.salePrice||q.quotePrice||0,deliveryCharge:q.deliveryCharge||0,vatAmount:q.vatAmount||0,vatRate:q.vatRate||0,productType:q.productType||"Cake",cakeSummary:q.cakeSummary||"",notes:q.notes||"",status:"unpaid",bankName:co.bankName||"",bankAccount:co.bankAccount||"",bankAccountName:co.bankAccountName||"",businessName:co.name||"Fayvouree Cakes"}
                   const existing=JSON.parse(localStorage.getItem("ll_quote_invoices")||"[]")
                   if(!existing.find(i=>i.id===invoiceNum)){localStorage.setItem("ll_quote_invoices",JSON.stringify([savedInv,...existing]))}
-                  // Also send via WhatsApp option
-                  const phone=(q.clientPhone||"").replace(/[^0-9]/g,"").replace(/^0/,"234")
-                  if(phone){
-                    setTimeout(()=>{
-                      if(window.confirm("Invoice opened. Send a WhatsApp message to "+q.clientName+" with the invoice details?")){
-                        const msg="Hello "+q.clientName+"! 🎂 Your invoice is ready.%0A%0AInvoice: "+invoiceNum+"%0AAmount: ₦"+(q.salePrice||q.quotePrice||0).toLocaleString()+"%0A%0APlease make payment to:%0ABank: "+(co.bankName||"")+ "%0AAccount: "+(co.bankAccount||"")+" ("+( co.bankAccountName||"")+")%0A%0AThank you for choosing "+(co.name||"Fayvouree Cakes")+"! 🎂"
-                        window.open("https://wa.me/"+phone+"?text="+msg,"_blank")
-                      }
-                    },1500)
-                  }
                 }} style={{padding:"5px 14px",borderRadius:8,border:"none",background:"#1D9E75",color:"#fff",fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:500}}>🧾 Convert to invoice</button>
                 <Btn small variant="danger" onClick={()=>deleteQuote(q.id)}>Delete</Btn>
               </div>
@@ -3732,9 +3945,11 @@ function OrderCalculator({inventory,recipes,settings,setView,company}){
   const FILLING_TYPES=["Buttercream","Jam","Ganache","Custard","Cream Cheese","Whipped Cream"]
   const SIZES=["4\"","5\"","6\"","7\"","8\"","9\"","10\"","12\"","14\""]
   const PRODUCT_TYPES=["Cake","Donuts","Cake Loaf","Tarts / Pastry","Cupcakes"]
+  const EVENT_TYPES=["Birthday","Wedding","Anniversary","Naming / Christening","Graduation","Corporate / Office","Bridal Shower","Baby Shower","Engagement","Valentine","Mother's Day","Father's Day","Christmas","Easter","Thanksgiving","Get Well","Congratulations","Just Because","Other"]
 
   const getMult=(size,shape)=>{
-    const key=`${size.replace('\"','')}-${shape.toLowerCase()}`
+    if(!size||!shape)return 0
+    const key=`${String(size).replace('"','')}-${shape.toLowerCase()}`
     return mults[key]||1
   }
 
@@ -3816,8 +4031,10 @@ function OrderCalculator({inventory,recipes,settings,setView,company}){
   }
   const saved=useState(()=>restoreCalc())[0]
 
-  const [productType,setProductType]=useState(()=>saved?.productType||"Cake")
+  const [productType,setProductType]=useState(()=>saved?.productType||"")
+  const [showItemPicker,setShowItemPicker]=useState(false)
   const [clientName,setClientName]=useState(()=>saved?.clientName||saved?.clientName||"")
+  const [eventType,setEventType]=useState(()=>saved?.eventType||"")
   const [clientPhone,setClientPhone]=useState(()=>saved?.clientPhone||"")
   const [clientNotes,setClientNotes]=useState(()=>saved?.clientNotes||saved?.notes||"")
   const [deliveryDate,setDeliveryDate]=useState(()=>saved?.deliveryDate||"")
@@ -3839,14 +4056,18 @@ function OrderCalculator({inventory,recipes,settings,setView,company}){
   const autoSave=(extra={})=>{
     try{localStorage.setItem("ll_calc_state",JSON.stringify({productType,clientName,clientPhone,clientNotes,tiers,accRows,topper,margin,...extra}))}catch{}
   }
-  const [tiers,setTiers]=useState(()=>saved?.tiers?.length>0?saved.tiers:[{id:uid2(),size:'6"',shape:"Round",layers:[{id:uid2(),flavour:""}],coverings:[{id:uid2(),type:"Buttercream",grams:300}],fillings:[{id:uid2(),type:"Buttercream",grams:200}]}])
+  const [tiers,setTiers]=useState(()=>saved?.tiers?.length>0?saved.tiers:[])
   const [decQty,setDecQty]=useState(()=>saved?.decQty||{})
   const [accRows,setAccRows]=useState(()=>saved?.accRows?.length>0?saved.accRows:[{id:uid2(),itemId:"p2",name:"Cake Board 8\"",price:450}])
   const [topper,setTopper]=useState(()=>saved?.topper||{enabled:false,make:"",deliver:"",description:""})
   const [margin,setMargin]=useState(()=>saved?.margin||settings.profitPct||40)
+  const [orderPurpose,setOrderPurpose]=useState(()=>saved?.orderPurpose||"sale")
+  const [deliveryCharge,setDeliveryCharge]=useState(()=>saved?.deliveryCharge||"")
+  const [vatEnabled,setVatEnabled]=useState(()=>saved?.vatEnabled||false)
+  const [vatRate,setVatRate]=useState(()=>saved?.vatRate||7.5)
 
   // Tier operations
-  const addTier=()=>setTiers(t=>[...t,{id:uid2(),size:'6"',shape:"Round",layers:[{id:uid2(),flavour:""}],coverings:[{id:uid2(),type:"Buttercream",grams:300}],fillings:[{id:uid2(),type:"Buttercream",grams:200}]}])
+  const addTier=()=>setTiers(t=>[...t,{id:uid2(),size:"",shape:"",layers:[{id:uid2(),flavour:""}],coverings:[{id:uid2(),type:"Buttercream",grams:0}],fillings:[{id:uid2(),type:"Buttercream",grams:0}]}])
   const removeTier=id=>setTiers(t=>t.filter(x=>x.id!==id))
   const updateTier=(id,key,val)=>setTiers(t=>t.map(x=>x.id===id?{...x,[key]:val}:x))
   const addLayer=tid=>setTiers(t=>t.map(x=>x.id===tid?{...x,layers:[...x.layers,{id:uid2(),flavour:""}]}:x))
@@ -3901,8 +4122,17 @@ function OrderCalculator({inventory,recipes,settings,setView,company}){
   const subtotal=productBaseCost+totalAcc
   const accPct=(1+(settings.accessoryPct||10)/100)
   const totalCost=Math.round(subtotal*accPct)
-  const suggestedPrice=Math.round(totalCost/(1-margin/100))
-  const profit=suggestedPrice-totalCost
+  // Price covers ingredient cost + overhead share + profit share (both as % of selling price)
+  const profitPct=settings.profitPct||50
+  const overheadPct=settings.overheadPct||27
+  const combinedPct=Math.min(90,profitPct+overheadPct)
+  const suggestedPrice=Math.round(totalCost/(1-combinedPct/100))
+  const overheadAmount=Math.round(suggestedPrice*(overheadPct/100))
+  const profit=Math.round(suggestedPrice*(profitPct/100))
+  const cakePrice=(orderPurpose==="gift"||orderPurpose==="sample")?0:(+salePrice||suggestedPrice)
+  const delivCharge=+deliveryCharge||0
+  const vatAmount=vatEnabled?Math.round(cakePrice*(vatRate/100)):0
+  const grandTotal=cakePrice+delivCharge+vatAmount
 
   const renderTierCard=(tier,ti)=>{
     const tc=tierCost(tier)
@@ -3917,12 +4147,14 @@ function OrderCalculator({inventory,recipes,settings,setView,company}){
         <div>
           <label style={{fontSize:10,color:"var(--muted)",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:.8,fontWeight:500}}>Size</label>
           <select value={tier.size} onChange={e=>updateTier(tier.id,"size",e.target.value)} style={{...iSt}}>
-            {PRICING_SIZES.map(s=><option key={s} value={s}>{s}</option>)}
+            <option value="">— Select —</option>
+            {PRICING_SIZES.map(s=><option key={s} value={s}>{s}"</option>)}
           </select>
         </div>
         <div>
           <label style={{fontSize:10,color:"var(--muted)",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:.8,fontWeight:500}}>Shape</label>
           <select value={tier.shape} onChange={e=>updateTier(tier.id,"shape",e.target.value)} style={{...iSt}}>
+            <option value="">— Select —</option>
             {["Round","Square","Sheet"].map(s=><option key={s} value={s}>{s}</option>)}
           </select>
         </div>
@@ -3999,7 +4231,7 @@ function OrderCalculator({inventory,recipes,settings,setView,company}){
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
         <Inp label="Delivery / collection date *" type="date" value={deliveryDate} onChange={v=>{setDeliveryDate(v);autoSave({deliveryDate:v})}}/>
-        <div/>
+        <Sel label="Event" value={eventType} onChange={v=>{setEventType(v);autoSave({eventType:v})}} options={[{value:"",label:"— Select event —"},...EVENT_TYPES.map(e=>({value:e,label:e}))]}/>
       </div>
       <Inp label="Notes / special requests" value={clientNotes} onChange={v=>{setClientNotes(v);autoSave({clientNotes:v})}} placeholder="Colour theme, flavour preferences, delivery instructions..."/>
     </Card>
@@ -4032,13 +4264,36 @@ function OrderCalculator({inventory,recipes,settings,setView,company}){
 
     <div style={{display:"grid",gridTemplateColumns:"1.3fr 0.7fr",gap:18}}>
       <div>
-        {/* Product type */}
-        <div style={{marginBottom:14}}>
-          <label style={{fontSize:10,color:"var(--muted)",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:.8,fontWeight:500}}>Product type</label>
-          <select value={productType} onChange={e=>setProductType(e.target.value)} style={{...iSt,maxWidth:220}}>
+        {/* Add Item — choose Cake or Pastry */}
+        {!productType&&<div style={{marginBottom:14}}>
+          {!showItemPicker
+            ?<Btn onClick={()=>setShowItemPicker(true)} style={{width:"100%",borderStyle:"dashed"}} variant="ghost">+ Add Item</Btn>
+            :<Card style={{background:"#FFF9EE",borderColor:"var(--gold)"}}>
+              <div style={{fontSize:13,fontWeight:600,marginBottom:10,textAlign:"center"}}>What are you adding?</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <button onClick={()=>{setProductType("Cake");setShowItemPicker(false);if(tiers.length===0)setTiers([{id:uid2(),size:"",shape:"",layers:[{id:uid2(),flavour:""}],coverings:[{id:uid2(),type:"Buttercream",grams:0}],fillings:[{id:uid2(),type:"Buttercream",grams:0}]}])}} style={{padding:"18px 12px",borderRadius:10,border:"1.5px solid var(--gold)",background:"var(--panel)",cursor:"pointer",fontFamily:"inherit"}}>
+                  <div style={{fontSize:26,marginBottom:6}}>🎂</div>
+                  <div style={{fontSize:14,fontWeight:600,color:"var(--gold)"}}>Cake</div>
+                  <div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>Layers, tiers, fillings</div>
+                </button>
+                <button onClick={()=>{setProductType("Tarts / Pastry");setShowItemPicker(false)}} style={{padding:"18px 12px",borderRadius:10,border:"1.5px solid var(--gold)",background:"var(--panel)",cursor:"pointer",fontFamily:"inherit"}}>
+                  <div style={{fontSize:26,marginBottom:6}}>🧁</div>
+                  <div style={{fontSize:14,fontWeight:600,color:"var(--gold)"}}>Pastry</div>
+                  <div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>Loaves, donuts, tarts</div>
+                </button>
+              </div>
+              <div style={{textAlign:"center",marginTop:10}}><button onClick={()=>setShowItemPicker(false)} style={{background:"none",border:"none",color:"var(--muted)",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button></div>
+            </Card>}
+        </div>}
+
+        {/* Product type sub-selector (once an item type chosen) */}
+        {productType&&<div style={{marginBottom:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <label style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:.8,fontWeight:500}}>Item type</label>
+          <select value={productType} onChange={e=>setProductType(e.target.value)} style={{...iSt,maxWidth:200,marginTop:0}}>
             {PRODUCT_TYPES.map(p=><option key={p} value={p}>{p}</option>)}
           </select>
-        </div>
+          <button onClick={()=>{setProductType("");setTiers([]);setShowItemPicker(false)}} style={{background:"none",border:"1px solid var(--border)",borderRadius:7,padding:"6px 12px",color:"var(--muted)",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>✕ Clear item</button>
+        </div>}
 
         {/* CAKE / CUPCAKES — Tiers */}
         {(productType==="Cake"||productType==="Cupcakes")&&<>
@@ -4242,14 +4497,52 @@ function OrderCalculator({inventory,recipes,settings,setView,company}){
             <div style={{fontFamily:"'Playfair Display',serif",fontSize:26,fontWeight:700,color:"var(--gold)"}}>{fmt(suggestedPrice)}</div>
             <div style={{fontSize:11,color:"var(--muted)",marginTop:3}}>Profit: {fmt(profit)} ({margin}% margin)</div>
           </div>
-          <div style={{marginBottom:14}}>
+          {/* Order purpose */}
+          <div style={{margin:"4px 0 14px"}}>
+            <label style={{fontSize:10,color:"var(--muted)",display:"block",marginBottom:6,textTransform:"uppercase",letterSpacing:.8,fontWeight:500}}>Order Purpose</label>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:5}}>
+              {[["sale","Sale"],["gift","Gift"],["sample","Sample"]].map(([v,l])=>
+                <button key={v} onClick={()=>setOrderPurpose(v)} style={{padding:"8px 4px",borderRadius:7,border:orderPurpose===v?"2px solid var(--gold)":"1px solid var(--border)",background:orderPurpose===v?"#FEF9EE":"var(--panel)",color:orderPurpose===v?"var(--gold)":"var(--muted)",fontSize:12,fontWeight:orderPurpose===v?600:400,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+              )}
+            </div>
+            {(orderPurpose==="gift"||orderPurpose==="sample")&&<div style={{background:"#F0EAFC",borderRadius:8,padding:"8px 10px",marginTop:8,fontSize:11.5,color:"#6B32A0",lineHeight:1.6}}>
+              {orderPurpose==="gift"?"🎁 Gift":"🧪 Sample/Tasting"} — no revenue recorded, but ingredients ({fmt(totalCost)}) will be deducted from inventory and logged as a {orderPurpose} cost. This keeps your stock accurate.
+            </div>}
+          </div>
+
+          {orderPurpose==="sale"&&<div style={{marginBottom:14}}>
             <label style={{fontSize:10,color:"var(--muted)",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:.8,fontWeight:500}}>Actual sale price (₦) — what you charge the client</label>
             <input type="number" value={salePrice} onChange={e=>setSalePrice(e.target.value)} placeholder={"e.g. "+suggestedPrice} style={{...iSt,fontSize:18,fontWeight:600,color:"var(--gold)",textAlign:"center"}}/>
             {salePrice&&+salePrice!==suggestedPrice&&<div style={{fontSize:11,color:+salePrice>suggestedPrice?"#357A52":"#B03A2E",marginTop:3,textAlign:"center"}}>{+salePrice>suggestedPrice?"▲ Above suggested":"▼ Below suggested"} by {fmt(Math.abs(+salePrice-suggestedPrice))}</div>}
+          </div>}
+
+          {/* Delivery + VAT */}
+          <div style={{borderTop:"1px solid var(--border)",paddingTop:12,marginBottom:14}}>
+            <div style={{marginBottom:10}}>
+              <label style={{fontSize:10,color:"var(--muted)",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:.8,fontWeight:500}}>Delivery Charge (₦) — paid by client</label>
+              <input type="number" value={deliveryCharge} onChange={e=>setDeliveryCharge(e.target.value)} placeholder="0" style={{...iSt}}/>
+              <div style={{fontSize:10.5,color:"var(--muted)",marginTop:3}}>Pass-through — collected from client, paid to dispatch. Not counted as your income.</div>
+            </div>
+            <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,cursor:"pointer"}}>
+              <input type="checkbox" checked={vatEnabled} onChange={e=>setVatEnabled(e.target.checked)}/>
+              Add VAT
+              {vatEnabled&&<input type="number" value={vatRate} onChange={e=>setVatRate(+e.target.value||0)} style={{width:54,padding:"4px 6px",border:"1px solid var(--border)",borderRadius:5,fontSize:12,fontFamily:"inherit",textAlign:"center"}}/>}
+              {vatEnabled&&<span style={{fontSize:12,color:"var(--muted)"}}>%</span>}
+            </label>
           </div>
 
+          {orderPurpose==="sale"&&(delivCharge>0||vatAmount>0)&&<div style={{background:"#FEF9EE",border:"1px solid var(--gold)",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,marginBottom:4}}><span style={{color:"var(--muted)"}}>Cake price</span><span>{fmt(cakePrice)}</span></div>
+            {delivCharge>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,marginBottom:4}}><span style={{color:"var(--muted)"}}>Delivery</span><span>{fmt(delivCharge)}</span></div>}
+            {vatAmount>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,marginBottom:4}}><span style={{color:"var(--muted)"}}>VAT ({vatRate}%)</span><span>{fmt(vatAmount)}</span></div>}
+            <div style={{display:"flex",justifyContent:"space-between",fontWeight:700,fontSize:16,paddingTop:6,borderTop:"1px solid var(--border)",marginTop:4,color:"var(--gold)"}}><span>Client Pays</span><span>{fmt(grandTotal)}</span></div>
+          </div>}
+
           <Btn full onClick={()=>{
-            if(!clientName.trim()){alert("Please enter a client name at the top of the page");return}
+            const isGS=orderPurpose==="gift"||orderPurpose==="sample"
+            if(!isGS&&!clientName.trim()){alert("Please enter a client name at the top of the page");return}
+            if(!productType){alert("Please add an item first — tap '+ Add Item' and choose Cake or Pastry");return}
+            if((productType==="Cake"||productType==="Cupcakes")&&!tiers.some(t=>t.size&&t.shape&&t.layers.some(l=>l.flavour))){alert("Please complete at least one cake tier (size, shape and flavour)");return}
             // Generate summaries based on product type
             let flavourSummary=""
             let cakeSummary=""
@@ -4269,16 +4562,21 @@ function OrderCalculator({inventory,recipes,settings,setView,company}){
             const co=loadCompany()
             const quote={
               id:uid(),
-              clientName:clientName.trim(),
+              clientName:clientName.trim()||(orderPurpose==="gift"?"Gift":orderPurpose==="sample"?"Sample/Tasting":"Walk-in"),
               clientPhone,
               date:new Date().toISOString().slice(0,10),
-              productType,tiers,accRows,topper,decQty,
+              productType:isGS?orderPurpose:productType,tiers,accRows,topper,decQty,
               donutGroups,loaves,tartQty,tartFillings,tartGarnish,
               cakePhoto:cakePhoto||null,
-              totalCost,quotePrice:suggestedPrice,salePrice:+salePrice||suggestedPrice,margin,
+              totalCost,quotePrice:suggestedPrice,
+              salePrice:isGS?0:(+salePrice||suggestedPrice),
+              orderPurpose,
+              deliveryCharge:delivCharge,vatEnabled,vatRate,vatAmount,grandTotal,
+              margin,
               cakeSummary,flavourSummary,
               notes:clientNotes,
-              deliveryDate,
+              deliveryDate:deliveryDate||(isGS?new Date().toISOString().slice(0,10):""),
+              eventType,
               status:"pending",
               bankName:co.bankName||"",
               bankAccount:co.bankAccount||"",
@@ -4431,10 +4729,22 @@ function PricingSetup({settings,setSetting}){
       <Card style={{marginBottom:14}}>
         <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:12}}>Default profit margin</div>
         <div style={{display:"flex",alignItems:"center",gap:14,margin:"12px 0"}}>
-          <input type="range" min={10} max={80} value={settings.profitPct||40} onChange={e=>setSetting("profitPct",+e.target.value)} style={{flex:1,accentColor:"var(--gold)"}}/>
-          <div style={{fontSize:22,fontWeight:700,color:"var(--gold)",minWidth:46}}>{settings.profitPct||40}%</div>
+          <input type="range" min={10} max={80} value={settings.profitPct||50} onChange={e=>setSetting("profitPct",+e.target.value)} style={{flex:1,accentColor:"var(--gold)"}}/>
+          <div style={{fontSize:22,fontWeight:700,color:"var(--gold)",minWidth:46}}>{settings.profitPct||50}%</div>
         </div>
-        <div style={{padding:"8px 12px",background:"#F5F0E4",borderRadius:8,fontSize:12.5,color:"var(--muted)"}}>If a cake costs ₦31,888 to make, suggested price: <strong style={{color:"var(--text)"}}>{fmt(Math.round(31888/(1-(settings.profitPct||40)/100)))}</strong></div>
+        <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.6}}>This is your true profit — the share of every sale that is yours to keep after both ingredients and overheads are covered.</div>
+      </Card>
+      <Card style={{marginBottom:14}}>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:12}}>Overhead margin</div>
+        <p style={{fontSize:12.5,color:"var(--muted)",marginTop:0,lineHeight:1.7}}>The share of each sale set aside to cover running costs — rent, fuel, electricity, salaries, marketing. Industry standard for bakeries is 25–30%.</p>
+        <div style={{display:"flex",alignItems:"center",gap:14,margin:"12px 0"}}>
+          <input type="range" min={0} max={45} value={settings.overheadPct||27} onChange={e=>setSetting("overheadPct",+e.target.value)} style={{flex:1,accentColor:"var(--gold)"}}/>
+          <div style={{fontSize:22,fontWeight:700,color:"var(--gold)",minWidth:46}}>{settings.overheadPct||27}%</div>
+        </div>
+        {((settings.profitPct||50)+(settings.overheadPct||27))>=95&&<div style={{padding:"8px 12px",background:"#FDEBE9",borderRadius:8,fontSize:12,color:"#B03A2E",lineHeight:1.6}}>⚠ Profit + Overhead is very high ({(settings.profitPct||50)+(settings.overheadPct||27)}%). Leave room for ingredient cost — keep the total below about 90%.</div>}
+        <div style={{padding:"10px 12px",background:"#F5F0E4",borderRadius:8,fontSize:12.5,color:"var(--muted)",marginTop:6,lineHeight:1.7}}>
+          Example: if a cake costs <strong style={{color:"var(--text)"}}>₦10,000</strong> in ingredients, the app prices it so <strong style={{color:"var(--text)"}}>{settings.profitPct||50}%</strong> is your profit and <strong style={{color:"var(--text)"}}>{settings.overheadPct||27}%</strong> covers overheads → suggested price <strong style={{color:"var(--gold)"}}>{fmt(Math.round(10000/Math.max(0.05,1-((settings.profitPct||50)+(settings.overheadPct||27))/100)))}</strong>
+        </div>
       </Card>
       <Card>
         <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:12}}>Accessory percentage</div>
@@ -4614,6 +4924,286 @@ function Purchases({inventory,setInventory,expenses,setExpenses}){
   </div>
 }
 
+
+// ═══════════════════════════════════════════════════════════
+//  CREDIT PURCHASES / ACCOUNTS PAYABLE
+// ═══════════════════════════════════════════════════════════
+function Payables({inventory,setInventory}){
+  const [bills,setBills]=useState(()=>{try{return JSON.parse(localStorage.getItem("ll_payables")||"[]")}catch{return[]}})
+  const [showForm,setShowForm]=useState(false)
+  const [f,setF]=useState({supplier:"",description:"",amount:"",date:today(),dueDate:"",addToInventory:false,invId:"",qty:"",unitSize:""})
+
+  const save=(b)=>{setBills(b);localStorage.setItem("ll_payables",JSON.stringify(b))}
+
+  const totalOwed=bills.reduce((s,b)=>s+(b.amount-(b.paid||0)),0)
+  const openBills=bills.filter(b=>(b.amount-(b.paid||0))>0).length
+  const today_=new Date().toISOString().slice(0,10)
+  const overdue=bills.filter(b=>b.dueDate&&b.dueDate<today_&&(b.amount-(b.paid||0))>0).reduce((s,b)=>s+(b.amount-(b.paid||0)),0)
+
+  const addBill=()=>{
+    if(!f.supplier||!f.amount){alert("Supplier and amount are required");return}
+    const bill={id:uid(),supplier:f.supplier,description:f.description,amount:+f.amount,paid:0,date:f.date,dueDate:f.dueDate,addedToInventory:f.addToInventory,invId:f.invId}
+    save([bill,...bills])
+    if(f.addToInventory&&f.invId&&f.qty&&f.unitSize){
+      const stockAdd=(+f.qty)*(+f.unitSize)
+      const cpu=+f.amount/Math.max(1,stockAdd)
+      const updInv=inventory.map(i=>i.id===f.invId?{...i,stock:parseFloat((i.stock+stockAdd).toFixed(3)),cost:parseFloat(cpu.toFixed(2))}:i)
+      setInventory(updInv);saveInventory(updInv)
+    }
+    setF({supplier:"",description:"",amount:"",date:today(),dueDate:"",addToInventory:false,invId:"",qty:"",unitSize:""})
+    setShowForm(false)
+  }
+
+  const payBill=(id)=>{
+    const bill=bills.find(b=>b.id===id)
+    const owing=bill.amount-(bill.paid||0)
+    const pay=prompt("How much are you paying "+bill.supplier+"?\nOwing: "+fmt(owing),owing)
+    if(pay===null)return
+    const amt=Math.min(+pay,owing)
+    if(amt<=0)return
+    save(bills.map(b=>b.id===id?{...b,paid:(b.paid||0)+amt,lastPaid:today()}:b))
+    try{
+      const pays=JSON.parse(localStorage.getItem("ll_ap_payments")||"[]")
+      pays.push({id:uid(),billId:id,supplier:bill.supplier,amount:amt,date:today()})
+      localStorage.setItem("ll_ap_payments",JSON.stringify(pays))
+    }catch(e){}
+  }
+
+  const delBill=(id)=>{if(confirm("Delete this bill?"))save(bills.filter(b=>b.id!==id))}
+
+  const iSt={width:"100%",padding:"9px 11px",border:"1px solid var(--border)",borderRadius:7,fontSize:13,fontFamily:"inherit",background:"var(--panel)",color:"var(--text)",marginTop:4,outline:"none"}
+
+  return <div>
+    <SHead title="Credit Purchases" sub="Track what you owe suppliers — buy now, pay later"/>
+    <div style={{background:"#FEF9EE",border:"1px solid var(--gold)",borderRadius:8,padding:"11px 14px",fontSize:12.5,color:"#7A5500",lineHeight:1.7,marginBottom:14}}>
+      💡 A credit purchase records goods you've taken now but will pay for later. It adds to what you owe (Accounts Payable). When you pay, the debt and your cash both go down — the cost only hits your P&L through COGS when you sell the cake.
+    </div>
+
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}}>
+      <Card style={{textAlign:"center",padding:"13px 15px"}}><div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700,color:"#B03A2E"}}>{fmt(totalOwed)}</div><div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:.7,marginTop:3}}>Total Owed</div></Card>
+      <Card style={{textAlign:"center",padding:"13px 15px"}}><div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700}}>{openBills}</div><div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:.7,marginTop:3}}>Open Bills</div></Card>
+      <Card style={{textAlign:"center",padding:"13px 15px"}}><div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700,color:overdue>0?"#B03A2E":"var(--text)"}}>{fmt(overdue)}</div><div style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:.7,marginTop:3}}>Overdue</div></Card>
+    </div>
+
+    <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+      <Btn onClick={()=>setShowForm(!showForm)}>+ Record Credit Purchase</Btn>
+    </div>
+
+    {showForm&&<Card style={{marginBottom:14,background:"#FFF9EE",borderColor:"var(--gold)"}}>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:14,fontWeight:600,marginBottom:12}}>New Credit Purchase</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+        <div><label style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:.7,fontWeight:600}}>Supplier *</label><input value={f.supplier} onChange={e=>setF(p=>({...p,supplier:e.target.value}))} placeholder="e.g. Delyon Cakes" style={iSt}/></div>
+        <div><label style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:.7,fontWeight:600}}>Date</label><input type="date" value={f.date} onChange={e=>setF(p=>({...p,date:e.target.value}))} style={iSt}/></div>
+      </div>
+      <div style={{marginBottom:10}}><label style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:.7,fontWeight:600}}>What you bought</label><input value={f.description} onChange={e=>setF(p=>({...p,description:e.target.value}))} placeholder="e.g. Flour, sugar, cocoa" style={iSt}/></div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+        <div><label style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:.7,fontWeight:600}}>Total amount (₦) *</label><input type="number" value={f.amount} onChange={e=>setF(p=>({...p,amount:e.target.value}))} placeholder="106800" style={iSt}/></div>
+        <div><label style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:.7,fontWeight:600}}>Due date</label><input type="date" value={f.dueDate} onChange={e=>setF(p=>({...p,dueDate:e.target.value}))} style={iSt}/></div>
+      </div>
+      <label style={{display:"flex",alignItems:"center",gap:8,fontSize:13,cursor:"pointer",padding:"8px 0"}}>
+        <input type="checkbox" checked={f.addToInventory} onChange={e=>setF(p=>({...p,addToInventory:e.target.checked}))}/>
+        Add these goods to inventory now
+      </label>
+      {f.addToInventory&&<div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:8,marginBottom:10,padding:10,background:"var(--bg)",borderRadius:8}}>
+        <div><label style={{fontSize:10,color:"var(--muted)"}}>Item</label><select value={f.invId} onChange={e=>setF(p=>({...p,invId:e.target.value}))} style={iSt}><option value="">— Select —</option>{inventory.map(i=><option key={i.id} value={i.id}>{i.name} ({i.unit})</option>)}</select></div>
+        <div><label style={{fontSize:10,color:"var(--muted)"}}>Packs</label><input type="number" value={f.qty} onChange={e=>setF(p=>({...p,qty:e.target.value}))} style={iSt}/></div>
+        <div><label style={{fontSize:10,color:"var(--muted)"}}>Pack size</label><input type="number" value={f.unitSize} onChange={e=>setF(p=>({...p,unitSize:e.target.value}))} style={iSt}/></div>
+      </div>}
+      <div style={{display:"flex",gap:8}}>
+        <Btn variant="success" onClick={addBill}>✓ Record Bill</Btn>
+        <Btn variant="ghost" onClick={()=>setShowForm(false)}>Cancel</Btn>
+      </div>
+    </Card>}
+
+    <Card style={{padding:0,overflowX:"auto"}}>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+        <TH cols={["Date","Supplier","For","Amount","Owing","Status",""]}/>
+        <tbody>{bills.length===0?<tr><td colSpan={7} style={{padding:32,textAlign:"center",color:"var(--muted)"}}>No credit purchases yet. Record one above when you take goods on credit.</td></tr>:
+          bills.map((b,i)=>{
+            const owing=b.amount-(b.paid||0)
+            const isOverdue=b.dueDate&&b.dueDate<today_&&owing>0
+            const status=owing<=0?"paid":b.paid>0?"part":isOverdue?"overdue":"unpaid"
+            const statusLabel={paid:"Paid ✓",part:"Part-paid",overdue:"Overdue",unpaid:"Unpaid"}[status]
+            const statusColor={paid:"green",part:"gold",overdue:"red",unpaid:"red"}[status]
+            return <TR2 key={b.id} i={i} row={[
+              <span style={{color:"var(--muted)",fontSize:12}}>{b.date}</span>,
+              <span style={{fontWeight:600}}>{b.supplier}</span>,
+              <span style={{fontSize:12.5}}>{b.description||"—"}</span>,
+              <span>{fmt(b.amount)}</span>,
+              <span style={{fontWeight:600,color:owing>0?"#B03A2E":"var(--muted)"}}>{fmt(owing)}</span>,
+              owing>0?<span onClick={()=>payBill(b.id)} style={{cursor:"pointer"}}><Badge color={statusColor}>{statusLabel}</Badge></span>:<Badge color="green">{statusLabel}</Badge>,
+              <Btn small variant="ghost" onClick={()=>delBill(b.id)}>×</Btn>,
+            ]}/>
+          })
+        }</tbody>
+      </table>
+    </Card>
+    <div style={{fontSize:11.5,color:"var(--muted)",marginTop:8}}>Tap a status pill to record a payment. Payments reduce both the debt and your cash balance.</div>
+  </div>
+}
+
+// ═══════════════════════════════════════════════════════════
+//  BALANCE SHEET
+// ═══════════════════════════════════════════════════════════
+function loadOpeningBalance(){
+  try{return JSON.parse(localStorage.getItem("ll_opening_balance")||"null")}catch{return null}
+}
+function BalanceSheet({productions,expenses,inventory,transactions,company}){
+  const ob=loadOpeningBalance()
+  const [editing,setEditing]=useState(!ob)
+  const [ob2,setOb2]=useState(ob||{cash:"",equipment:"",capital:"",loanBalance:"",asOf:today()})
+
+  const saveOB=()=>{
+    const data={cash:+ob2.cash||0,equipment:+ob2.equipment||0,capital:+ob2.capital||0,loanBalance:+ob2.loanBalance||0,asOf:ob2.asOf}
+    localStorage.setItem("ll_opening_balance",JSON.stringify(data))
+    setEditing(false)
+  }
+
+  const inventoryValue=inventory.reduce((s,i)=>s+((i.stock||0)*(i.cost||0)),0)
+
+  let payables=0
+  try{const bills=JSON.parse(localStorage.getItem("ll_payables")||"[]");payables=bills.reduce((s,b)=>s+(b.amount-(b.paid||0)),0)}catch(e){}
+
+  const allRevenue=mergeRevenueSources(productions)
+  const receivables=allRevenue.filter(p=>{const s=(p.status||"").toLowerCase();return s!=="paid"&&s!=="delivered"&&s!=="completed"}).reduce((s,p)=>s+(p.salePrice||0),0)
+
+  const totalRev=allRevenue.reduce((s,p)=>s+(p.salePrice||0),0)
+  const totalCogs=allRevenue.reduce((s,p)=>s+(p.cost||0),0)
+  const EXCL=["Ingredient costs","Ingredients / Supplies","Pass-through Payment","Loan Repayment","Client Reimbursable (paid out)","Already logged via receipt"]
+  const totalOverhead=expenses.filter(e=>!EXCL.includes(e.category)&&e.source!=="purchase").reduce((s,e)=>s+(e.amount||0),0)
+  const retainedEarnings=totalRev-totalCogs-totalOverhead
+
+  const obCash=ob?.cash||0
+  const obEquip=ob?.equipment||0
+  const obCapital=ob?.capital||0
+  const obLoan=ob?.loanBalance||0
+
+  const cashIn=transactions.filter(t=>t.type==="credit").reduce((s,t)=>s+(t.amount||0),0)
+  const cashOut=transactions.filter(t=>t.type==="debit").reduce((s,t)=>s+(t.amount||0),0)
+  const cash=obCash+cashIn-cashOut
+
+  const totalAssets=cash+inventoryValue+receivables+obEquip
+  const totalLiabilities=payables+obLoan
+  const totalEquity=obCapital+retainedEarnings
+  const balanced=Math.abs(totalAssets-(totalLiabilities+totalEquity))<1
+
+  const iSt={width:"100%",padding:"9px 11px",border:"1px solid var(--border)",borderRadius:7,fontSize:13,fontFamily:"inherit",background:"var(--panel)",color:"var(--text)",marginTop:4,outline:"none"}
+
+  if(editing)return <div>
+    <SHead title="Balance Sheet" sub="First, set your opening balances"/>
+    <Card style={{maxWidth:520}}>
+      <div style={{background:"#FEF9EE",border:"1px solid var(--gold)",borderRadius:8,padding:"11px 14px",fontSize:12.5,color:"#7A5500",lineHeight:1.7,marginBottom:16}}>
+        💡 Enter your starting position once. These are the things the app can't work out on its own: how much cash you have, what your equipment is worth, money you put in, and any outstanding loan.
+      </div>
+      <div style={{marginBottom:12}}><label style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:.7,fontWeight:600}}>As at date</label><input type="date" value={ob2.asOf} onChange={e=>setOb2(p=>({...p,asOf:e.target.value}))} style={iSt}/></div>
+      <div style={{marginBottom:12}}><label style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:.7,fontWeight:600}}>Cash & bank balance (₦)</label><input type="number" value={ob2.cash} onChange={e=>setOb2(p=>({...p,cash:e.target.value}))} placeholder="420000" style={iSt}/></div>
+      <div style={{marginBottom:12}}><label style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:.7,fontWeight:600}}>Equipment value — ovens, mixers (₦)</label><input type="number" value={ob2.equipment} onChange={e=>setOb2(p=>({...p,equipment:e.target.value}))} placeholder="650000" style={iSt}/></div>
+      <div style={{marginBottom:12}}><label style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:.7,fontWeight:600}}>Money you invested — owner's capital (₦)</label><input type="number" value={ob2.capital} onChange={e=>setOb2(p=>({...p,capital:e.target.value}))} placeholder="600000" style={iSt}/></div>
+      <div style={{marginBottom:16}}><label style={{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:.7,fontWeight:600}}>Outstanding loan balance (₦)</label><input type="number" value={ob2.loanBalance} onChange={e=>setOb2(p=>({...p,loanBalance:e.target.value}))} placeholder="300000" style={iSt}/></div>
+      <Btn variant="success" onClick={saveOB}>✓ Save Opening Balances</Btn>
+    </Card>
+  </div>
+
+  return <div>
+    <SHead title="Balance Sheet" sub={"As at "+new Date().toLocaleDateString("en-NG",{day:"numeric",month:"long",year:"numeric"})}/>
+    <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+      <Btn small variant="ghost" onClick={()=>{setOb2(ob||{cash:"",equipment:"",capital:"",loanBalance:"",asOf:today()});setEditing(true)}}>Edit opening balances</Btn>
+    </div>
+
+    <Card style={{maxWidth:560}}>
+      <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:1,color:"var(--gold)",fontWeight:700,marginBottom:6,paddingBottom:4,borderBottom:"1px solid var(--border)"}}>Assets — what you own</div>
+      <PLRow label="Cash & bank balance" value={fmt(cash)} indent/>
+      <PLRow label="Inventory (ingredients in store)" value={fmt(inventoryValue)} indent/>
+      <PLRow label="Accounts receivable (owed by clients)" value={fmt(receivables)} indent/>
+      <PLRow label="Equipment" value={fmt(obEquip)} indent/>
+      <PLRow label="Total Assets" value={fmt(totalAssets)} bold/>
+
+      <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:1,color:"var(--gold)",fontWeight:700,margin:"16px 0 6px",paddingBottom:4,borderBottom:"1px solid var(--border)"}}>Liabilities — what you owe</div>
+      <PLRow label="Accounts payable (owed to suppliers)" value={fmt(payables)} indent/>
+      <PLRow label="Business loan outstanding" value={fmt(obLoan)} indent/>
+      <PLRow label="Total Liabilities" value={fmt(totalLiabilities)} bold/>
+
+      <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:1,color:"var(--gold)",fontWeight:700,margin:"16px 0 6px",paddingBottom:4,borderBottom:"1px solid var(--border)"}}>Equity — your stake</div>
+      <PLRow label="Owner's capital" value={fmt(obCapital)} indent/>
+      <PLRow label="Retained earnings (accumulated profit)" value={fmt(retainedEarnings)} indent/>
+      <PLRow label="Total Equity" value={fmt(totalEquity)} bold/>
+
+      <div style={{display:"flex",justifyContent:"space-between",fontWeight:700,fontSize:15,padding:"12px 14px",background:"#FEF9EE",borderRadius:8,marginTop:14}}>
+        <span>Liabilities + Equity</span><span>{fmt(totalLiabilities+totalEquity)}</span>
+      </div>
+      <div style={{textAlign:"center",marginTop:10,padding:9,background:balanced?"#E4F4EC":"#FAE8E6",borderRadius:8,color:balanced?"#1D7A4A":"#B03A2E",fontSize:13,fontWeight:600}}>
+        {balanced?"✓ Balanced":"⚠ Out of balance by "+fmt(Math.abs(totalAssets-(totalLiabilities+totalEquity)))}
+      </div>
+    </Card>
+  </div>
+}
+
+// ═══════════════════════════════════════════════════════════
+//  CASH FLOW STATEMENT
+// ═══════════════════════════════════════════════════════════
+function CashFlow({productions,expenses,transactions,company}){
+  const last12=Array.from({length:12},(_,i)=>{const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);return d.toISOString().slice(0,7)})
+  const allMonths=[...new Set([...last12,...transactions.map(t=>t.date?.slice(0,7)).filter(Boolean)])].sort().reverse()
+  const [sel,setSel]=useState(new Date().toISOString().slice(0,7))
+
+  const mt=transactions.filter(t=>t.date?.startsWith(sel))
+
+  const clientIn=mt.filter(t=>t.type==="credit"&&/sales|payment from client|deposit/i.test(t.category||"")).reduce((s,t)=>s+t.amount,0)
+  const supplierOut=mt.filter(t=>t.type==="debit"&&/ingredient|supplies|already logged/i.test(t.category||"")).reduce((s,t)=>s+t.amount,0)
+  let apPayments=0
+  try{const pays=JSON.parse(localStorage.getItem("ll_ap_payments")||"[]");apPayments=pays.filter(p=>p.date?.startsWith(sel)).reduce((s,p)=>s+p.amount,0)}catch(e){}
+  const overheadOut=mt.filter(t=>t.type==="debit"&&/rent|salary|utilit|fuel|delivery|marketing|maintenance|other expense/i.test(t.category||"")).reduce((s,t)=>s+t.amount,0)
+  const netOperating=clientIn-supplierOut-apPayments-overheadOut
+
+  const equipmentOut=mt.filter(t=>t.type==="debit"&&/equipment/i.test(t.category||"")).reduce((s,t)=>s+t.amount,0)
+  const netInvesting=-equipmentOut
+
+  const loanIn=mt.filter(t=>t.type==="credit"&&/loan received/i.test(t.category||"")).reduce((s,t)=>s+t.amount,0)
+  const loanOut=mt.filter(t=>t.type==="debit"&&/loan repay/i.test(t.category||"")).reduce((s,t)=>s+t.amount,0)
+  const netFinancing=loanIn-loanOut
+
+  const netChange=netOperating+netInvesting+netFinancing
+
+  const Row=({label,value,indent,bold,pos})=>(<div style={{display:"flex",justifyContent:"space-between",padding:bold?"10px 0":"7px 0",borderBottom:bold?"2px solid var(--border)":"1px solid var(--border)",fontWeight:bold?700:400,fontSize:bold?14:13.5}}>
+    <span style={{paddingLeft:indent?16:0,color:indent?"var(--muted)":"var(--text)"}}>{label}</span>
+    <span style={{color:value<0?"#B03A2E":pos?"#2D7A50":"var(--text)",fontWeight:bold||pos||value<0?600:400}}>{value<0?"−"+fmt(Math.abs(value)):pos?"+"+fmt(value):fmt(value)}</span>
+  </div>)
+
+  return <div>
+    <SHead title="Cash Flow Statement" sub="Real cash movement — not profit"/>
+    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18}}>
+      <select value={sel} onChange={e=>setSel(e.target.value)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid var(--border)",background:"var(--panel)",fontSize:13,color:"var(--text)",fontFamily:"inherit"}}>
+        {allMonths.map(m=><option key={m} value={m}>{new Date(m+"-02").toLocaleDateString("en-NG",{month:"long",year:"numeric"})}</option>)}
+      </select>
+    </div>
+
+    <div style={{background:"#FEF9EE",border:"1px solid var(--gold)",borderRadius:8,padding:"11px 14px",fontSize:12.5,color:"#7A5500",lineHeight:1.7,marginBottom:14}}>
+      💡 This shows actual cash in and out, grouped into Operating (trade), Investing (assets) and Financing (loans). A business can be profitable but still short of cash — this reveals the real picture.
+    </div>
+
+    <Card style={{maxWidth:560}}>
+      <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:1,color:"var(--gold)",fontWeight:700,marginBottom:6,paddingBottom:4,borderBottom:"1px solid var(--border)"}}>Operating activities</div>
+      <Row label="Cash from clients" value={clientIn} pos indent/>
+      <Row label="Paid to suppliers (ingredients)" value={-supplierOut-apPayments} indent/>
+      <Row label="Rent, salary, utilities" value={-overheadOut} indent/>
+      <Row label="Net cash from operations" value={netOperating} bold/>
+
+      <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:1,color:"var(--gold)",fontWeight:700,margin:"16px 0 6px",paddingBottom:4,borderBottom:"1px solid var(--border)"}}>Investing activities</div>
+      <Row label="Equipment purchases" value={-equipmentOut} indent/>
+      <Row label="Net cash from investing" value={netInvesting} bold/>
+
+      <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:1,color:"var(--gold)",fontWeight:700,margin:"16px 0 6px",paddingBottom:4,borderBottom:"1px solid var(--border)"}}>Financing activities</div>
+      <Row label="Loan received" value={loanIn} pos indent/>
+      <Row label="Loan repayment" value={-loanOut} indent/>
+      <Row label="Net cash from financing" value={netFinancing} bold/>
+
+      <div style={{display:"flex",justifyContent:"space-between",fontWeight:700,fontSize:15,padding:"12px 14px",background:netChange>=0?"#E8F5EE":"#FDEBE9",borderRadius:8,marginTop:14,color:netChange>=0?"#1D6B40":"#B03A2E"}}>
+        <span>Net change in cash</span><span>{netChange<0?"−"+fmt(Math.abs(netChange)):"+"+fmt(netChange)}</span>
+      </div>
+    </Card>
+  </div>
+}
+
 // ═══════════════════════════════════════════════════════════
 //  ROOT APP
 // ═══════════════════════════════════════════════════════════
@@ -4691,11 +5281,14 @@ export default function App(){
     {id:"invoices",label:"Invoices",icon:"📄",roles:["owner","customer_service"]},
     {id:"_accounts",label:"Accounts",icon:"",roles:["owner"],divider:true},
     {id:"purchases",label:"Purchases",icon:"🛍",roles:["owner"]},
+    {id:"payables",label:"Credit Purchases",icon:"📋",roles:["owner"]},
     {id:"expenses",label:"Expenses",icon:"💸",roles:["owner"]},
     {id:"bank",label:"Bank Import",icon:"⊞",roles:["owner"]},
     {id:"_reports",label:"Reports",icon:"",roles:["owner"],divider:true},
     {id:"monthly",label:"Monthly Overview",icon:"📊",roles:["owner"]},
     {id:"pandl",label:"P&L Statement",icon:"📑",roles:["owner"]},
+    {id:"balance",label:"Balance Sheet",icon:"⚖",roles:["owner"]},
+    {id:"cashflow",label:"Cash Flow",icon:"💧",roles:["owner"]},
     {id:"_system",label:"System",icon:"",roles:["owner","production","customer_service"],divider:true},
     {id:"settings",label:"Settings",icon:"⚙",roles:["owner"]},
   ].filter(n=>n.roles.includes(role))
@@ -4785,6 +5378,9 @@ export default function App(){
             {view==="bank"       &&<BankImport transactions={transactions} setTransactions={setTransactions} productions={productions} expenses={expenses} setExpenses={setExpenses}/>}
             {view==="monthly"    &&<MonthlyOverview inventory={inventory} productions={productions} expenses={expenses} company={company}/>}
             {view==="pandl"      &&<PandL productions={productions} expenses={expenses} company={company}/>}
+            {view==="payables"   &&<Payables inventory={inventory} setInventory={setInventory}/>}
+            {view==="balance"    &&<BalanceSheet productions={productions} expenses={expenses} inventory={inventory} transactions={transactions} company={company}/>}
+            {view==="cashflow"   &&<CashFlow productions={productions} expenses={expenses} transactions={transactions} company={company}/>}
             {view==="shopping"   &&<ShoppingList inventory={inventory} company={company}/>}
             {view==="invoices"   &&<Invoices productions={productions} company={company} prefillProd={prefillProd} setPrefillProd={setPrefillProd}/>}
             {view==="settings"   &&<Settings company={company} setCompany={setCompany} settings={settings} setSettings={setSettings} users={users} setUsers={setUsers} inventory={inventory}/>}
