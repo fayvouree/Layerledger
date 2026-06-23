@@ -9,7 +9,7 @@
 import React, { useState, useRef } from "react"
 import { Btn, iSt, Inp, Sel, Card, Badge, SHead, Tabs, TH, TR2, Alert } from "../common/ui.jsx"
 import { fmt, uid } from "../../lib/helpers.js"
-import { ROLES } from "../../constants.js"
+import { ROLES, QUOTE_STATUSES, DEFAULT_MULTS, DEFAULT_COVERINGS, DEFAULT_ACCESSORIES } from "../../constants.js"
 import { saveSetting, saveCompany, saveUsers, loadQuotes, saveQuotes } from "../../lib/data.js"
 import { PLRow } from "../../lib/costing.jsx"
 
@@ -540,8 +540,3 @@ export function Settings({company,setCompany,settings,setSettings,users,setUsers
 // ═══════════════════════════════════════════════════════════
 //  QUOTES PAGE
 // ═══════════════════════════════════════════════════════════
-const QUOTE_STATUSES=[
-  {v:"pending",l:"Pending",c:"#BA7517",bg:"#FAEEDA"},
-  {v:"approved",l:"Approved",c:"#085041",bg:"#E1F5EE"},
-]
-
