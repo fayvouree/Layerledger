@@ -5,7 +5,7 @@
  * Track money owed to suppliers and record payments.
  * ----------------------------------------------------------------------------
  */
-import React from "react"
+import React, { useState } from "react"
 import { Btn, iSt, Card, Badge, SHead, TH, TR2 } from "../common/ui.jsx"
 import { fmt, uid, today } from "../../lib/helpers.js"
 import { saveInventory } from "../../lib/data.js"

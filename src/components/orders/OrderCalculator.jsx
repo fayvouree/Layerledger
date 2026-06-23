@@ -6,7 +6,7 @@
  * Prices using profit + overhead margins from Settings.
  * ----------------------------------------------------------------------------
  */
-import React from "react"
+import React, { useState, useRef } from "react"
 import { Btn, iSt, Inp, Sel, Card, SHead } from "../common/ui.jsx"
 import { fmt, uid } from "../../lib/helpers.js"
 import { DECORATION_ITEMS } from "../../constants.js"

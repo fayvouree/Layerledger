@@ -5,7 +5,7 @@
  * Photograph a receipt; AI extracts items; confirm to update stock + expenses.
  * ----------------------------------------------------------------------------
  */
-import React from "react"
+import React, { useState, useRef } from "react"
 import { Btn, iSt, Inp, Card, Badge, SHead } from "../common/ui.jsx"
 import { fmt, uid, today, callClaude, compressImage } from "../../lib/helpers.js"
 import { saveInventory, saveExpenses } from "../../lib/data.js"

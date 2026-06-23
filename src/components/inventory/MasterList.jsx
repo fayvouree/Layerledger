@@ -6,7 +6,7 @@
  * RecipeCard also exposes the Duplicate-recipe action.
  * ----------------------------------------------------------------------------
  */
-import React from "react"
+import React, { useState, useRef } from "react"
 import { Btn, iSt, Inp, Sel, Card, SHead, Tabs, TH, Modal, Alert } from "../common/ui.jsx"
 import { fmt, uid, recipeCost, parseCSV } from "../../lib/helpers.js"
 import { DECORATION_ITEMS } from "../../constants.js"

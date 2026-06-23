@@ -4,7 +4,7 @@
  * First-run onboarding checklist.
  * ----------------------------------------------------------------------------
  */
-import React from "react"
+import React, { useState } from "react"
 
 // ═══════════════════════════════════════════════════════════
 export function Onboarding({gold,onComplete,onSkip,setView}){

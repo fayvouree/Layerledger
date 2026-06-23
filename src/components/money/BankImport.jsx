@@ -5,7 +5,7 @@
  * Parses a statement, categorises rows, and splits delivery pass-through.
  * ----------------------------------------------------------------------------
  */
-import React from "react"
+import React, { useState, useRef } from "react"
 import { Btn, Card, Badge, SHead, TH, TR2 } from "../common/ui.jsx"
 import { fmt, uid, callClaude } from "../../lib/helpers.js"
 import { saveTxns, saveExpenses } from "../../lib/data.js"

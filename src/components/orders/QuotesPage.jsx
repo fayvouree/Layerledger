@@ -6,7 +6,7 @@
  * Gift/sample orders are logged as a write-off with no revenue.
  * ----------------------------------------------------------------------------
  */
-import React from "react"
+import React, { useState } from "react"
 import { Btn, Card, SHead } from "../common/ui.jsx"
 import { fmt, uid } from "../../lib/helpers.js"
 import { saveInventory, saveProduction, loadExpenses, saveExpenses, loadCompany } from "../../lib/data.js"

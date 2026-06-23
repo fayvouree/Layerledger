@@ -35,6 +35,9 @@ import { loadInventory, saveInventory, loadProductions, saveProduction, updatePr
 // ─── Seed data & helpers ────────────────────────────────────────────────────
 import { DEFAULT_INV, DEFAULT_RECIPES } from "./constants.js"
 
+// ─── Shared UI primitive used directly in the root layout ───────────────────
+import { Spinner } from "./components/common/ui.jsx"
+
 // ─── Screen components (one import per screen) ──────────────────────────────
 import { Login } from "./components/auth/Login.jsx"
 import { Dashboard } from "./components/dashboard/Dashboard.jsx"

@@ -5,7 +5,7 @@
  * Assets, liabilities and equity from opening balances + live data.
  * ----------------------------------------------------------------------------
  */
-import React from "react"
+import React, { useState } from "react"
 import { Btn, iSt, Card, SHead } from "../common/ui.jsx"
 import { fmt, today } from "../../lib/helpers.js"
 import { mergeRevenueSources, loadOpeningBalance, PLRow } from "../../lib/costing.jsx"

@@ -5,7 +5,7 @@
  * Users pick their name and enter a PIN to access the app.
  * ----------------------------------------------------------------------------
  */
-import React from "react"
+import React, { useState } from "react"
 import { Btn, iSt, Sel, Card } from "../common/ui.jsx"
 import { ROLES } from "../../constants.js"
 import { loadUsers } from "../../lib/data.js"

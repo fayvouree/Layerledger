@@ -5,7 +5,7 @@
  * Generates a printable invoice window with a Share button.
  * ----------------------------------------------------------------------------
  */
-import React from "react"
+import React, { useState, useEffect } from "react"
 import { Btn, iSt, Card, Badge, SHead, Tabs } from "../common/ui.jsx"
 
 // ═══════════════════════════════════════════════════════════

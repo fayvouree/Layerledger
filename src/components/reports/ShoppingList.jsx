@@ -4,7 +4,7 @@
  * Low-stock shopping list.
  * ----------------------------------------------------------------------------
  */
-import React from "react"
+import React, { useState } from "react"
 import { Btn, Sel, Card, Badge, SHead } from "../common/ui.jsx"
 
 // ═══════════════════════════════════════════════════════════

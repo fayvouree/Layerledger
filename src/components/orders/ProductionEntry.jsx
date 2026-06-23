@@ -5,7 +5,7 @@
  * Step-based form to log a production directly.
  * ----------------------------------------------------------------------------
  */
-import React from "react"
+import React, { useState, useRef } from "react"
 import { Btn, iSt, Inp, Sel, Card, SHead, Steps, Spinner } from "../common/ui.jsx"
 import { fmt, uid, today, calcFullCost, callClaude, compressImage } from "../../lib/helpers.js"
 import { DECORATION_ITEMS, FLAVOR_EXTRAS, PAYMENT_TYPES } from "../../constants.js"

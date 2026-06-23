@@ -5,7 +5,7 @@
  * Revenue from confirmed orders, COGS, overhead; gift/sample excluded.
  * ----------------------------------------------------------------------------
  */
-import React from "react"
+import React, { useState } from "react"
 import { Btn, Card, SHead } from "../common/ui.jsx"
 import { fmt } from "../../lib/helpers.js"
 import { mergeRevenueSources, PLSection, PLRow } from "../../lib/costing.jsx"

@@ -4,7 +4,7 @@
  * Ingredient purchases list.
  * ----------------------------------------------------------------------------
  */
-import React from "react"
+import React, { useState } from "react"
 import { Btn, iSt, Inp, Card, SHead, TH, TR2 } from "../common/ui.jsx"
 import { fmt, uid } from "../../lib/helpers.js"
 import { saveInventory, saveExpenses } from "../../lib/data.js"
