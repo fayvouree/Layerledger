@@ -10,7 +10,7 @@ import React, { useState, useRef } from "react"
 import { Btn, iSt, Inp, Sel, Card, SHead } from "../common/ui.jsx"
 import { fmt, uid } from "../../lib/helpers.js"
 import { DECORATION_ITEMS } from "../../constants.js"
-import { loadCompany } from "../../lib/data.js"
+import { loadCompany, loadQuotes, saveQuotes } from "../../lib/data.js"
 
 
 export function OrderCalculator({inventory,recipes,settings,setView,company}){

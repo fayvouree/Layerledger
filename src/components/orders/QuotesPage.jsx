@@ -9,7 +9,7 @@
 import React, { useState } from "react"
 import { Btn, Card, SHead } from "../common/ui.jsx"
 import { fmt, uid } from "../../lib/helpers.js"
-import { saveInventory, saveProduction, loadExpenses, saveExpenses, loadCompany } from "../../lib/data.js"
+import { saveInventory, saveProduction, loadExpenses, saveExpenses, loadCompany, loadQuotes, saveQuotes } from "../../lib/data.js"
 import { Invoices } from "./Invoices.jsx"
 
 

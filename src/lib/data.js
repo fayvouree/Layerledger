@@ -92,3 +92,7 @@ export const upsertClient = (name, phone, email) => {
     }])
   }
 }
+
+// Quotes (orders before they are confirmed into productions)
+export const loadQuotes = () => { try { return JSON.parse(localStorage.getItem("ll_quotes") || "[]") } catch { return [] } }
+export const saveQuotes = (q) => { try { localStorage.setItem("ll_quotes", JSON.stringify(q)) } catch {} }

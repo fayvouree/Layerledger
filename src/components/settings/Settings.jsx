@@ -10,7 +10,7 @@ import React, { useState, useRef } from "react"
 import { Btn, iSt, Inp, Sel, Card, Badge, SHead, Tabs, TH, TR2, Alert } from "../common/ui.jsx"
 import { fmt, uid } from "../../lib/helpers.js"
 import { ROLES } from "../../constants.js"
-import { saveSetting, saveCompany, saveUsers } from "../../lib/data.js"
+import { saveSetting, saveCompany, saveUsers, loadQuotes, saveQuotes } from "../../lib/data.js"
 import { PLRow } from "../../lib/costing.jsx"
 
 // ═══════════════════════════════════════════════════════════
@@ -545,5 +545,3 @@ const QUOTE_STATUSES=[
   {v:"approved",l:"Approved",c:"#085041",bg:"#E1F5EE"},
 ]
 
-const loadQuotes=()=>{try{return JSON.parse(localStorage.getItem("ll_quotes")||"[]")}catch{return[]}}
-const saveQuotes=(q)=>{try{localStorage.setItem("ll_quotes",JSON.stringify(q))}catch{}}
